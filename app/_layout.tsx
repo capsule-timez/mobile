@@ -11,7 +11,10 @@ export default function RootLayout() {
           headerTitleStyle: { fontWeight: '600' },
           contentStyle: { backgroundColor: '#f5f5f7' },
         }}
-      />
+      >
+        <Stack.Screen name="index" options={{ title: 'Cápsulas' }} />
+        <Stack.Screen name="nova" options={{ title: 'Nova cápsula' }} />
+      </Stack>
     </>
   );
 }
