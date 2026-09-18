@@ -1,11 +1,11 @@
-import { StatusBar } from 'expo-status-bar';
+import { Stack } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-export default function App() {
+export default function HomeScreen() {
   return (
     <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
+      <Stack.Screen options={{ title: 'Cápsulas' }} />
+      <Text style={styles.text}>Cápsulas</Text>
     </View>
   );
 }
@@ -13,8 +13,11 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  text: {
+    fontSize: 18,
+    color: '#1c1c1e',
   },
 });
