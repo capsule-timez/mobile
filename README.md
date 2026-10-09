@@ -1,64 +1,79 @@
 # Cápsula — mobile
 
-Aplicativo mobile do Cápsula, construído com [Expo](https://expo.dev) (React Native + TypeScript)
-e navegação por arquivos com [expo-router](https://docs.expo.dev/router/introduction/).
+Aplicativo React Native com Expo e Expo Router.
 
-## Requisitos
+## Executar
 
-- Node.js 20+
-- App **Expo Go** instalado no celular (Android ou iOS)
-- Celular e computador na **mesma rede Wi-Fi**
-
-## Configuração
-
-```bash
-npm install
-cp .env.example .env
-```
-
-Edite o `.env` e informe a URL da API:
-
-```
-EXPO_PUBLIC_API_URL=http://192.168.0.10:3000
-```
-
-> Em dispositivo físico, `localhost` aponta para o próprio celular. Use o IP da
-> sua máquina na rede local (`ipconfig` no Windows, `ifconfig` no macOS/Linux).
-
-Apenas variáveis com o prefixo `EXPO_PUBLIC_` chegam ao bundle do app. Depois de
-alterar o `.env`, reinicie o bundler com `npx expo start --clear`.
-
-## Executando
-
-```bash
+```powershell
+npm ci
+Copy-Item .env.example .env
 npm start
 ```
 
-Escaneie o QR code exibido no terminal com o app Expo Go (Android) ou com a
-câmera (iOS). Se a rede bloquear a conexão direta, use o modo túnel:
+Em `.env`, configure `EXPO_PUBLIC_API_URL` com a **origem da API, sem /api**,
+por exemplo `http://192.168.0.10:3000`. No celular, use o IP do computador
+na mesma rede; no emulador Android, use `http://10.0.2.2:3000`.
+Reinicie o Expo após mudar a variável. Em produção, use HTTPS.
 
-```bash
-npx expo start --tunnel
-```
+O backend deve incluir o endpoint de cadastro da branch `codex/auth-register`
+do repositório backend. Execute suas migrações e inicie a API conforme o README dele.
+
+## Autenticação
+
+- Cadastro: `POST /api/auth/register`, com nome, e-mail e senha.
+- Login: `POST /api/auth/login`, com e-mail e senha.
+- Resposta dos dois endpoints: `{ token, user: { id, name, email, createdAt } }`.
+- Restauração: `GET /api/auth/me`, com `Authorization: Bearer <token>`;
+  a resposta é `{ id, name, email, createdAt }`.
+- O token é salvo exclusivamente por `expo-secure-store` em Android/iOS.
+  Senhas e dados do formulário não são persistidos. O acesso às telas internas
+  só é liberado depois de salvar o token com sucesso.
+- Ao reabrir, o app valida o token antes de liberar a navegação. Erro de rede
+  mantém o token salvo e apresenta uma opção para tentar novamente.
+- Resposta 401 remove o token e volta ao login. A API atual não oferece refresh:
+  depois do prazo configurado em `JWT_EXPIRES_IN` (padrão 1h), é necessário entrar novamente.
+- Sair remove o token do dispositivo. O backend atual não revoga JWTs emitidos.
+- **Web:** usa somente memória; recarregar/fechar a página encerra a sessão.
+  Não há fallback para localStorage ou AsyncStorage.
+- Os formulários usam área segura, rolagem, KeyboardAvoidingView e redimensionamento
+  de janela no Android; o teclado permite avançar entre campos.
 
 ## Estrutura
 
-```
-app/                 rotas do expo-router
-  _layout.tsx        Stack raiz e títulos das telas
-  index.tsx          listagem de cápsulas
-  nova.tsx           criação de cápsula
-src/
-  config/env.ts      leitura e validação das variáveis de ambiente
-  services/http.ts   cliente HTTP (fetch) com a URL base da API
+```text
+app/login.tsx, cadastro.tsx     telas públicas
+app/_layout.tsx                restauração e proteção das rotas
+app/index.tsx, nova.tsx         telas internas existentes
+src/components/AuthForm.tsx    formulário compartilhado
+src/auth/                      sessão, validação e SecureStore
+src/services/                  cliente HTTP e endpoints de autenticação
+tests/                         testes de sessão e integração HTTP do cliente
 ```
 
-## Scripts
+## Verificar
 
-| Comando | Descrição |
-| --- | --- |
-| `npm start` | Inicia o bundler do Expo |
-| `npm run android` | Abre no emulador/dispositivo Android |
-| `npm run ios` | Abre no simulador iOS (requer macOS) |
-| `npm run web` | Abre no navegador |
-| `npx tsc --noEmit` | Verifica os tipos |
+```bash
+npm run typecheck
+npm test
+npx expo export --platform android --platform ios --platform web
+```
+
+Os testes do mobile usam armazenamento e rede simulados. O export verifica os
+bundles, mas não substitui a execução em dispositivo.
+
+### Roteiro em Android/iOS com a API e PostgreSQL
+
+1. Abra o app sem sessão: deve exibir login.
+2. Cadastre uma conta; deve abrir Cápsulas. Repita o e-mail e confira o erro de duplicidade.
+3. Saia e entre com a conta criada. Senha incorreta deve mostrar erro.
+4. Encerre o processo do app e reabra: deve recuperar a sessão sem pedir senha.
+5. Encerre, desligue a rede e reabra: deve oferecer nova tentativa sem perder o token.
+6. Reconecte e tente novamente: deve recuperar a sessão.
+7. Saia, encerre e reabra: deve continuar na tela de login.
+8. Com token expirado, reabra: deve voltar ao login.
+9. Em tela pequena, abra o teclado em cada campo, especialmente confirmar senha,
+   e confira a rolagem e o botão de envio.
+10. Confirme que não há token nos logs, arquivos de configuração ou armazenamento
+    comum do app. A persistência nativa deve ocorrer somente via SecureStore.
+
+Referência: [Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/).

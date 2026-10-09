@@ -1,7 +1,8 @@
 import { Link } from 'expo-router';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { API_URL } from '../src/config/env';
+import { useState } from 'react';
+import { useAuth } from '../src/auth/AuthProvider';
 
 type Capsula = {
   id: string;
@@ -9,6 +10,14 @@ type Capsula = {
 };
 
 export default function ListaCapsulasScreen() {
+  const { signOut } = useAuth();
+  const [logoutError, setLogoutError] = useState('');
+  const [loggingOut, setLoggingOut] = useState(false);
+  async function logout() {
+    setLoggingOut(true); setLogoutError('');
+    try { await signOut(); } catch (error) { setLogoutError(error instanceof Error ? error.message : 'Não foi possível sair.'); }
+    finally { setLoggingOut(false); }
+  }
   // A listagem ainda não consome a API — a tela existe para validar a
   // navegação e a configuração do ambiente.
   const capsulas: Capsula[] = [];
@@ -35,7 +44,8 @@ export default function ListaCapsulasScreen() {
       />
 
       <View style={styles.footer}>
-        <Text style={styles.apiUrl}>API: {API_URL}</Text>
+        <Pressable accessibilityRole="button" disabled={loggingOut} onPress={() => void logout()} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={styles.apiUrl}>{loggingOut ? 'Saindo…' : 'Sair da conta'}</Text></Pressable>
+        {!!logoutError && <Text accessibilityRole="alert" style={{ color: '#a31d30' }}>{logoutError}</Text>}
         <Link href="/nova" asChild>
           <Pressable style={styles.button}>
             <Text style={styles.buttonText}>Nova cápsula</Text>
