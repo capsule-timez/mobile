@@ -24,7 +24,7 @@ do repositório backend. Execute suas migrações e inicie a API conforme o READ
 - Login: `POST /api/auth/login`, com e-mail e senha.
 - Resposta dos dois endpoints: `{ token, user: { id, name, email, createdAt } }`.
 - Restauração: `GET /api/auth/me`, com `Authorization: Bearer <token>`;
-  a resposta atual é `{ userId }`.
+  a resposta é `{ id, name, email, createdAt }`.
 - O token é salvo exclusivamente por `expo-secure-store` em Android/iOS.
   Senhas e dados do formulário não são persistidos. O acesso às telas internas
   só é liberado depois de salvar o token com sucesso.
