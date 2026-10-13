@@ -1,8 +1,56 @@
 # Cápsula — mobile
 
-Aplicativo React Native com Expo e Expo Router.
+Aplicativo React Native (Expo SDK 57, Expo Router, TypeScript) do Cápsula do
+Tempo: o usuário cria cápsulas com uma mensagem e uma data de entrega, e a API
+envia o conteúdo por e-mail quando o momento chega.
 
-## Executar
+## Funcionalidades
+
+- Cadastro, login e restauração de sessão (token JWT guardado no SecureStore).
+- **Minhas cápsulas:** listagem paginada da API, contadores por status
+  (agendadas, enviadas, com falha), filtro por status, puxar para atualizar,
+  estados de carregamento, vazio e erro.
+- **Nova cápsula:** formulário em três passos (mensagem, data de entrega com
+  atalhos, destinatário — o próprio usuário ou outra pessoa), com validação
+  local e exibição dos erros devolvidos pela API.
+- Navegação por duas abas (listar / criar) e rotas protegidas pela sessão.
+
+Fora do escopo por enquanto: detalhe, edição e exclusão de cápsulas, anexos
+(a API já tem endpoints de arquivos) e refresh de token.
+
+## Pré-requisitos
+
+- Node.js 20 ou superior e npm.
+- A API do repositório [`backend/`](../backend) rodando, com PostgreSQL. Veja
+  o README dele; o resumo está abaixo.
+- Um destes para abrir o app: celular com o app **Expo Go**, emulador
+  Android (Android Studio), simulador iOS (somente macOS) ou navegador.
+
+## Como rodar
+
+### 1. Subir a API
+
+Em outro terminal, a partir de `backend/`:
+
+```powershell
+Copy-Item .env.example .env
+docker volume create capsula-api_postgres_data
+docker volume create capsula-api_minio_data
+docker compose up -d
+npm install
+npm run db:generate
+npm run db:deploy
+npm run dev
+```
+
+Os dois `docker volume create` só são necessários na primeira vez. A API sobe
+em `http://localhost:3000`; confira com `curl http://localhost:3000/health`.
+O envio dos e-mails só funciona com `RESEND_API_KEY` preenchida no `.env` do
+backend, mas cadastro, login e criação/listagem de cápsulas funcionam sem ela.
+
+### 2. Configurar e iniciar o app
+
+A partir de `mobile/`:
 
 ```powershell
 npm ci
@@ -10,13 +58,41 @@ Copy-Item .env.example .env
 npm start
 ```
 
-Em `.env`, configure `EXPO_PUBLIC_API_URL` com a **origem da API, sem /api**,
-por exemplo `http://192.168.0.10:3000`. No celular, use o IP do computador
-na mesma rede; no emulador Android, use `http://10.0.2.2:3000`.
-Reinicie o Expo após mudar a variável. Em produção, use HTTPS.
+Edite o `.env` e defina `EXPO_PUBLIC_API_URL` com a **origem da API, sem
+`/api`**. O valor depende de onde o app roda:
 
-O backend deve incluir o endpoint de cadastro da branch `codex/auth-register`
-do repositório backend. Execute suas migrações e inicie a API conforme o README dele.
+| Onde o app roda | `EXPO_PUBLIC_API_URL` |
+| --- | --- |
+| Celular físico (Expo Go) | `http://<IP-do-computador>:3000` — mesma rede Wi-Fi |
+| Emulador Android | `http://10.0.2.2:3000` |
+| Simulador iOS / navegador | `http://localhost:3000` |
+
+Para descobrir o IP do computador no Windows, use `ipconfig` (endereço IPv4 do
+adaptador Wi-Fi). Se o celular não alcançar a API, libere a porta 3000 no
+firewall do Windows. Se celular e computador estiverem em redes diferentes,
+`npx expo start --tunnel` expõe o Metro por ngrok, mas **não** a API — ela
+continua precisando ser alcançável pelo celular.
+
+A variável é embutida no bundle em tempo de build: **reinicie o Expo** (de
+preferência com `npx expo start -c`) depois de alterar o `.env`. Sem ela o app
+falha ao iniciar com a mensagem `EXPO_PUBLIC_API_URL não definida`. Em
+produção, use HTTPS.
+
+Com o Metro aberto no terminal:
+
+- escaneie o QR code com o Expo Go (Android) ou a câmera (iOS);
+- ou pressione `a` (Android), `i` (iOS) ou `w` (web).
+
+Atalhos equivalentes: `npm run android`, `npm run ios`, `npm run web`.
+
+## Scripts
+
+| Script | Descrição |
+| --- | --- |
+| `npm start` | Inicia o Metro/Expo |
+| `npm run android` / `ios` / `web` | Inicia e abre na plataforma indicada |
+| `npm run typecheck` | Verifica a tipagem (`tsc --noEmit`) |
+| `npm test` | Roda os testes (`tsx --test tests/*.test.ts`) |
 
 ## Autenticação
 
@@ -30,26 +106,38 @@ do repositório backend. Execute suas migrações e inicie a API conforme o READ
   só é liberado depois de salvar o token com sucesso.
 - Ao reabrir, o app valida o token antes de liberar a navegação. Erro de rede
   mantém o token salvo e apresenta uma opção para tentar novamente.
-- Resposta 401 remove o token e volta ao login. A API atual não oferece refresh:
-  depois do prazo configurado em `JWT_EXPIRES_IN` (padrão 1h), é necessário entrar novamente.
+- Resposta 401 remove o token e volta ao login. O app não usa refresh token:
+  depois do prazo configurado em `JWT_EXPIRES_IN` no backend (padrão 1h), é
+  necessário entrar novamente.
 - Sair remove o token do dispositivo. O backend atual não revoga JWTs emitidos.
 - **Web:** usa somente memória; recarregar/fechar a página encerra a sessão.
   Não há fallback para localStorage ou AsyncStorage.
 - Os formulários usam área segura, rolagem, KeyboardAvoidingView e redimensionamento
   de janela no Android; o teclado permite avançar entre campos.
 
+## Cápsulas
+
+- Listagem: `GET /api/capsules?page=&pageSize=`. O app percorre as páginas
+  (100 por página, até 20) e filtra/ordena localmente.
+- Criação: `POST /api/capsules` com `title`, `text`, `recipientEmail` e
+  `scheduleDate` (ISO 8601 em UTC). A data deve estar no futuro.
+- O contrato completo está em `backend/docs/api/openapi.yaml`.
+
 ## Estrutura
 
 ```text
-app/login.tsx, cadastro.tsx     telas públicas
-app/_layout.tsx                restauração e proteção das rotas
-app/index.tsx                  listagem de cápsulas (GET /api/capsules)
-app/nova.tsx                   criação de cápsula (POST /api/capsules)
+app/_layout.tsx                restauração da sessão, fontes e proteção das rotas
+app/login.tsx, cadastro.tsx    telas públicas
+app/(app)/_layout.tsx          abas das telas autenticadas
+app/(app)/index.tsx            minhas cápsulas (GET /api/capsules)
+app/(app)/nova.tsx             criação de cápsula (POST /api/capsules)
+src/config/env.ts              leitura de EXPO_PUBLIC_API_URL
 src/theme/tokens.ts            tokens de design (cores, bordas, sombras, fontes)
 src/components/                kit de UI espelhando o da web (Button, FormField,
                                Card, Toast, Hero, CapsuleCard…) e AuthForm
 src/auth/                      sessão, validação e SecureStore
 src/services/                  cliente HTTP, autenticação e cápsulas
+src/types/                     tipos da API
 src/utils/                     datas em pt-BR, validação e ordenação (puros, testáveis)
 tests/                         testes de sessão, HTTP, cápsulas e utilitários
 ```
@@ -80,7 +168,7 @@ bundles, mas não substitui a execução em dispositivo.
 ### Roteiro em Android/iOS com a API e PostgreSQL
 
 1. Abra o app sem sessão: deve exibir login.
-2. Cadastre uma conta; deve abrir Cápsulas. Repita o e-mail e confira o erro de duplicidade.
+2. Cadastre uma conta; deve abrir Minhas cápsulas. Repita o e-mail e confira o erro de duplicidade.
 3. Saia e entre com a conta criada. Senha incorreta deve mostrar erro.
 4. Encerre o processo do app e reabra: deve recuperar a sessão sem pedir senha.
 5. Encerre, desligue a rede e reabra: deve oferecer nova tentativa sem perder o token.
@@ -91,5 +179,10 @@ bundles, mas não substitui a execução em dispositivo.
    e confira a rolagem e o botão de envio.
 10. Confirme que não há token nos logs, arquivos de configuração ou armazenamento
     comum do app. A persistência nativa deve ocorrer somente via SecureStore.
+11. Em Nova cápsula, tente enviar vazio e com data no passado: os erros devem
+    aparecer nos campos. Crie uma cápsula para você e outra para outro e-mail;
+    depois de lacrar, o app volta à lista e a cápsula aparece como agendada.
+12. Na lista, teste o filtro por status, puxar para atualizar e, com a API
+    parada, o estado de erro com "Tentar novamente".
 
 Referência: [Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/).
