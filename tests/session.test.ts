@@ -1,8 +1,11 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Session, type AuthApi, type TokenStorage } from '../src/auth/session';
+import { Session, type AuthApi, type TokenStorage, type User } from '../src/auth/session';
 import { validateAuth } from '../src/auth/validation';
+
+const user1: User = { id: 'user-1', name: 'User One', email: 'user@example.com' };
+const user2: User = { id: 'user-2', name: 'User Two', email: 'two@example.com' };
 
 function setup(saved: string | null = null) {
   const disk = { token: saved };
@@ -12,9 +15,9 @@ function setup(saved: string | null = null) {
     async remove() { disk.token = null; },
   };
   const api: AuthApi = {
-    async login() { return { token: 'test-token', user: { id: 'user-1' } }; },
-    async register() { return { token: 'registered-token', user: { id: 'user-2' } }; },
-    async me(token) { assert.ok(token); return { userId: 'user-1' }; },
+    async login() { return { token: 'test-token', user: user1 }; },
+    async register() { return { token: 'registered-token', user: user2 }; },
+    async me(token) { assert.ok(token); return user1; },
   };
   return { disk, storage, api, session: new Session(storage, api) };
 }
@@ -29,7 +32,7 @@ test('login persists the token and a fresh app instance restores the session', a
   const reopened = new Session(storage, api);
   assert.equal(reopened.getSnapshot().status, 'loading');
   await reopened.restore();
-  assert.deepEqual(reopened.getSnapshot(), { status: 'signedIn', userId: 'user-1' });
+  assert.deepEqual(reopened.getSnapshot(), { status: 'signedIn', user: user1 });
   assert.equal(reopened.getToken(), 'test-token');
 });
 
@@ -37,7 +40,7 @@ test('register starts an authenticated session', async () => {
   const { session, disk } = setup();
   await session.authenticate('register', { ...credentials, name: 'User' });
   assert.equal(disk.token, 'registered-token');
-  assert.deepEqual(session.getSnapshot(), { status: 'signedIn', userId: 'user-2' });
+  assert.deepEqual(session.getSnapshot(), { status: 'signedIn', user: user2 });
 });
 
 test('expired token is removed on startup', async () => {
@@ -55,7 +58,7 @@ test('offline startup keeps saved token, offers retry and never opens protected 
   assert.equal(session.getSnapshot().status, 'error');
   assert.equal(session.getToken(), null);
   assert.equal(disk.token, 'valid-token');
-  api.me = async () => ({ userId: 'user-1' });
+  api.me = async () => user1;
   await session.restore();
   assert.equal(session.getSnapshot().status, 'signedIn');
 });
@@ -101,11 +104,11 @@ test('stale unauthorized response cannot clear a newer session', async () => {
 test('duplicate submissions create only one request', async () => {
   const { session, api } = setup();
   let calls = 0;
-  let finish!: (result: { token: string; user: { id: string } }) => void;
+  let finish!: (result: { token: string; user: User }) => void;
   api.login = () => { calls++; return new Promise((resolve) => { finish = resolve; }); };
   const pending = session.authenticate('login', credentials);
   await session.authenticate('login', credentials);
-  finish({ token: 'test-token', user: { id: 'user-1' } });
+  finish({ token: 'test-token', user: user1 });
   await pending;
   assert.equal(calls, 1);
 });
