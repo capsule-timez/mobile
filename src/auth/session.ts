@@ -1,9 +1,10 @@
 export type Credentials = { email: string; password: string };
 export type Registration = Credentials & { name: string };
-export type AuthResult = { token: string; user: { id: string } };
+export type User = { id: string; name: string; email: string };
+export type AuthResult = { token: string; user: User };
 export type SessionState =
   | { status: 'loading' } | { status: 'signedOut' }
-  | { status: 'signedIn'; userId: string }
+  | { status: 'signedIn'; user: User }
   | { status: 'error'; message: string };
 
 export interface TokenStorage {
@@ -14,7 +15,7 @@ export interface TokenStorage {
 export interface AuthApi {
   login(input: Credentials): Promise<AuthResult>;
   register(input: Registration): Promise<AuthResult>;
-  me(token: string): Promise<{ userId: string }>;
+  me(token: string): Promise<User>;
 }
 
 // Only the token is persisted, through the injected secure storage.
@@ -52,7 +53,7 @@ export class Session {
       try {
         const user = await this.api.me(token);
         this.token = token;
-        this.update({ status: 'signedIn', userId: user.userId });
+        this.update({ status: 'signedIn', user });
       } catch (error) {
         if (isUnauthorized(error)) {
           await this.storage.remove();
@@ -82,7 +83,7 @@ export class Session {
         throw new Error('Não foi possível salvar a sessão com segurança. Tente entrar novamente.');
       }
       this.token = result.token;
-      this.update({ status: 'signedIn', userId: result.user.id });
+      this.update({ status: 'signedIn', user: result.user });
     } finally {
       this.pending = false;
     }
