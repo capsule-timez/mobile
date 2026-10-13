@@ -43,12 +43,28 @@ do repositório backend. Execute suas migrações e inicie a API conforme o READ
 ```text
 app/login.tsx, cadastro.tsx     telas públicas
 app/_layout.tsx                restauração e proteção das rotas
-app/index.tsx, nova.tsx         telas internas existentes
-src/components/AuthForm.tsx    formulário compartilhado
+app/index.tsx                  listagem de cápsulas (GET /api/capsules)
+app/nova.tsx                   criação de cápsula (POST /api/capsules)
+src/theme/tokens.ts            tokens de design (cores, bordas, sombras, fontes)
+src/components/                kit de UI espelhando o da web (Button, FormField,
+                               Card, Toast, Hero, CapsuleCard…) e AuthForm
 src/auth/                      sessão, validação e SecureStore
-src/services/                  cliente HTTP e endpoints de autenticação
-tests/                         testes de sessão e integração HTTP do cliente
+src/services/                  cliente HTTP, autenticação e cápsulas
+src/utils/                     datas em pt-BR, validação e ordenação (puros, testáveis)
+tests/                         testes de sessão, HTTP, cápsulas e utilitários
 ```
+
+## Interface
+
+A UI segue o design da web (`frontend/`): visual neo-brutalista com bordas
+grossas, sombras duras, paleta de papel/laranja/amarelo e as fontes Archivo
+Black e Space Grotesk. O React Native não tem `box-shadow` sem desfoque, então
+as sombras são uma camada sólida deslocada (`ShadowBox`). Ao mudar um
+componente da web, replique a mudança no componente de mesmo nome em
+`src/components/`.
+
+O seletor de data usa os diálogos nativos no Android, a roda de seleção no iOS
+e um campo de texto (`AAAA-MM-DD HH:mm`) no navegador.
 
 ## Verificar
 
