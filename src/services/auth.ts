@@ -1,14 +1,23 @@
-import type { AuthApi, AuthResult } from '../auth/session';
+import type { AuthApi, AuthResult, User } from '../auth/session';
 import { http } from './http';
 
-function parseAuth(value: unknown): AuthResult {
+function parseUser(value: unknown): User | null {
   if (
     !value || typeof value !== 'object' ||
-    !('token' in value) || typeof value.token !== 'string' || !value.token ||
-    !('user' in value) || !value.user || typeof value.user !== 'object' ||
-    !('id' in value.user) || typeof value.user.id !== 'string' || !value.user.id
+    !('id' in value) || typeof value.id !== 'string' || !value.id ||
+    !('name' in value) || typeof value.name !== 'string' ||
+    !('email' in value) || typeof value.email !== 'string'
+  ) return null;
+  return { id: value.id, name: value.name, email: value.email };
+}
+
+function parseAuth(value: unknown): AuthResult {
+  const user = value && typeof value === 'object' && 'user' in value ? parseUser(value.user) : null;
+  if (
+    !value || typeof value !== 'object' || !user ||
+    !('token' in value) || typeof value.token !== 'string' || !value.token
   ) throw new Error('A API retornou uma sessão inválida. Tente novamente.');
-  return { token: value.token, user: { id: value.user.id } };
+  return { token: value.token, user };
 }
 
 export const authApi: AuthApi = {
@@ -16,16 +25,20 @@ export const authApi: AuthApi = {
     return parseAuth(await http.post('/api/auth/login', { email: input.email, password: input.password }, { authenticated: false }));
   },
   async register(input) {
-    return parseAuth(await http.post('/api/auth/register', input, { authenticated: false }));
+    const created = await http.post<unknown>('/api/auth/register', input, { authenticated: false });
+    try {
+      return parseAuth(created);
+    } catch {
+      // A API atual cria a conta sem emitir token (a web também faz isso): entra em seguida.
+      return parseAuth(await http.post('/api/auth/login', { email: input.email, password: input.password }, { authenticated: false }));
+    }
   },
   async me(token) {
-    const value = await http.get<{ id?: unknown }>('/api/auth/me', {
+    const user = parseUser(await http.get<unknown>('/api/auth/me', {
       authenticated: false,
       headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!value || typeof value.id !== 'string' || !value.id) {
-      throw new Error('A API retornou uma sessão inválida.');
-    }
-    return { userId: value.id };
+    }));
+    if (!user) throw new Error('A API retornou uma sessão inválida.');
+    return user;
   },
 };
