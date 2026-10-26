@@ -172,7 +172,13 @@ export default function ListaCapsulasScreen() {
         data={state.status === 'success' ? visibleCapsules : []}
         extraData={filter}
         keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => <CapsuleCard capsule={item} index={index} />}
+        renderItem={({ item, index }) => (
+          <CapsuleCard
+            capsule={item}
+            index={index}
+            onPress={() => router.push({ pathname: '/capsula/[id]', params: { id: item.id } })}
+          />
+        )}
         ItemSeparatorComponent={Separator}
         ListHeaderComponent={header}
         ListEmptyComponent={empty}
