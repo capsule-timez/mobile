@@ -97,3 +97,39 @@ test('getApiErrorDetails falls back to the error message for connection failures
   assert.deepEqual(details.fieldErrors, {});
   assert.equal(getApiErrorDetails('boom').message, 'Erro inesperado. Tente novamente.');
 });
+
+test('getCapsule fetches the detail with attachments and the bearer token', async (t) => {
+  const { getCapsule } = await import('../src/services/capsules');
+  const { configureHttpAuth } = await import('../src/services/http');
+  const requests: Array<{ url: string; headers: Headers }> = [];
+  const file = { id: 'f-1', fileName: 'foto.jpg', mimeType: 'image/jpeg', fileSize: 2048, createdAt: '2026-10-01T12:00:00.000Z', downloadUrl: 'http://minio/foto.jpg?sig=1', downloadUrlExpiresAt: '2026-10-01T13:00:00.000Z' };
+  t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
+    requests.push({ url, headers: new Headers(options.headers) });
+    return new Response(JSON.stringify({ ...summary(), fileCount: undefined, text: 'Olá, futuro', files: [file] }), { status: 200 });
+  });
+  configureHttpAuth(() => 'test-token', async () => {});
+
+  const capsule = await getCapsule('c-1');
+
+  assert.equal(requests[0].url, 'http://localhost:3000/api/capsules/c-1');
+  assert.equal(requests[0].headers.get('Authorization'), 'Bearer test-token');
+  assert.equal(capsule.text, 'Olá, futuro');
+  assert.equal(capsule.files[0].downloadUrl, file.downloadUrl);
+  configureHttpAuth(() => null, async () => {});
+});
+
+test('getCapsule surfaces 404, offline API and malformed details as errors', async (t) => {
+  const { getCapsule } = await import('../src/services/capsules');
+  const { HttpError } = await import('../src/services/http');
+
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ status: 'error', code: 'NOT_FOUND', message: 'Capsula nao encontrada.' }), { status: 404 }));
+  const notFound = await getCapsule('missing').catch((error: unknown) => error);
+  assert.ok(notFound instanceof HttpError);
+  assert.equal(notFound.status, 404);
+
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Network request failed'); });
+  await assert.rejects(getCapsule('c-1'), /conectar/);
+
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ ...summary(), text: 'x', files: 'nope' }), { status: 200 }));
+  await assert.rejects(getCapsule('c-1'), /inválidos/);
+});
