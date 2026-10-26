@@ -121,6 +121,11 @@ Atalhos equivalentes: `npm run android`, `npm run ios`, `npm run web`.
   (100 por página, até 20) e filtra/ordena localmente.
 - Criação: `POST /api/capsules` com `title`, `text`, `recipientEmail` e
   `scheduleDate` (ISO 8601 em UTC). A data deve estar no futuro.
+- Detalhe: tocar em um card da lista abre `app/(app)/capsula/[id].tsx`, que
+  consulta `GET /api/capsules/:id` e mostra título, status, data de entrega,
+  destinatário, mensagem e anexos (imagens pela `downloadUrl` temporária; tocar
+  abre o arquivo). Há skeleton no carregamento, "Cápsula não encontrada" para 404
+  (id inexistente ou de outra conta) e "Tentar novamente" quando a API falha.
 - O contrato completo está em `backend/docs/api/openapi.yaml`.
 
 ## Estrutura
@@ -131,6 +136,7 @@ app/login.tsx, cadastro.tsx    telas públicas
 app/(app)/_layout.tsx          abas das telas autenticadas
 app/(app)/index.tsx            minhas cápsulas (GET /api/capsules)
 app/(app)/nova.tsx             criação de cápsula (POST /api/capsules)
+app/(app)/capsula/[id].tsx     detalhe da cápsula (GET /api/capsules/:id)
 src/config/env.ts              leitura de EXPO_PUBLIC_API_URL
 src/theme/tokens.ts            tokens de design (cores, bordas, sombras, fontes)
 src/components/                kit de UI espelhando o da web (Button, FormField,
@@ -184,5 +190,8 @@ bundles, mas não substitui a execução em dispositivo.
     depois de lacrar, o app volta à lista e a cápsula aparece como agendada.
 12. Na lista, teste o filtro por status, puxar para atualizar e, com a API
     parada, o estado de erro com "Tentar novamente".
+13. Toque em uma cápsula: o detalhe mostra os dados e as imagens anexadas. Com a
+    API parada, deve aparecer o erro com "Tentar novamente"; com um id
+    inexistente, "Cápsula não encontrada".
 
 Referência: [Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/).
