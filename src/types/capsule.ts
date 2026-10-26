@@ -19,6 +19,8 @@ export interface CapsuleFile {
   mimeType: string;
   fileSize: number;
   createdAt: string;
+  downloadUrl?: string;
+  downloadUrlExpiresAt?: string;
 }
 
 export interface Capsule extends Omit<CapsuleSummary, 'fileCount'> {
