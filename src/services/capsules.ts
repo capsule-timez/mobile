@@ -1,4 +1,4 @@
-import { CAPSULE_STATUSES, type Capsule, type CapsuleSummary, type CreateCapsuleInput, type PaginatedResponse } from '../types/capsule';
+import { CAPSULE_STATUSES, type Capsule, type CapsuleFile, type CapsuleSummary, type CreateCapsuleInput, type PaginatedResponse } from '../types/capsule';
 import { HttpError, http } from './http';
 
 const PAGE_SIZE = 100; 
@@ -42,6 +42,27 @@ function parseCapsule(value: unknown): Capsule {
   return value as unknown as Capsule;
 }
 
+function isFile(value: unknown): value is CapsuleFile {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.fileName === 'string' &&
+    typeof value.mimeType === 'string' &&
+    typeof value.fileSize === 'number' &&
+    (value.downloadUrl === undefined || typeof value.downloadUrl === 'string')
+  );
+}
+
+function parseCapsuleDetail(value: unknown): Capsule {
+  const capsule = parseCapsule(value);
+  if (
+    typeof capsule.recipientEmail !== 'string' ||
+    !CAPSULE_STATUSES.includes(capsule.status) ||
+    !Array.isArray(capsule.files) || !capsule.files.every(isFile)
+  ) throw new Error(INVALID_RESPONSE);
+  return capsule;
+}
+
 export async function listCapsules(signal?: AbortSignal): Promise<CapsuleSummary[]> {
   const capsules: CapsuleSummary[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
@@ -50,6 +71,10 @@ export async function listCapsules(signal?: AbortSignal): Promise<CapsuleSummary
     if (page >= result.meta.totalPages) break;
   }
   return capsules;
+}
+
+export async function getCapsule(id: string, signal?: AbortSignal): Promise<Capsule> {
+  return parseCapsuleDetail(await http.get<unknown>(`/api/capsules/${encodeURIComponent(id)}`, { signal }));
 }
 
 export async function createCapsule(input: CreateCapsuleInput): Promise<Capsule> {
