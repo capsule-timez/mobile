@@ -77,6 +77,10 @@ export async function getCapsule(id: string, signal?: AbortSignal): Promise<Caps
   return parseCapsuleDetail(await http.get<unknown>(`/api/capsules/${encodeURIComponent(id)}`, { signal }));
 }
 
+export async function deleteCapsule(id: string): Promise<void> {
+  await http.delete<void>(`/api/capsules/${encodeURIComponent(id)}`);
+}
+
 export async function createCapsule(input: CreateCapsuleInput): Promise<Capsule> {
   return parseCapsule(await http.post<unknown>('/api/capsules', input));
 }

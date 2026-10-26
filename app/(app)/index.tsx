@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useUser } from '../../src/auth/AuthProvider';
 import { AppShell } from '../../src/components/AppShell';
 import { Button } from '../../src/components/Button';
@@ -9,7 +9,7 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { Hero } from '../../src/components/Hero';
 import { SegmentedControl } from '../../src/components/SegmentedControl';
 import { useToast } from '../../src/components/Toast';
-import { getApiErrorDetails, listCapsules } from '../../src/services/capsules';
+import { deleteCapsule, getApiErrorDetails, listCapsules } from '../../src/services/capsules';
 import { colors, contentMaxWidth, fonts, stroke } from '../../src/theme/tokens';
 import type { CapsuleStatus, CapsuleSummary } from '../../src/types/capsule';
 import { countByStatus, sortCapsules } from '../../src/utils/capsuleList';
@@ -32,13 +32,17 @@ export default function ListaCapsulasScreen() {
   const [filter, setFilter] = useState<StatusFilter>('ALL');
   const [refreshing, setRefreshing] = useState(false);
   const mounted = useRef(true);
+  const deletedIds = useRef(new Set<string>());
+  const pendingDeletes = useRef(new Set<string>());
+  const confirming = useRef(false);
+  const [deletingIds, setDeletingIds] = useState(new Set<string>());
 
   /** Busca a lista na API. Devolve a mensagem de erro, ou null em caso de sucesso. */
   const load = useCallback(async (signal?: AbortSignal): Promise<string | null> => {
     try {
       const capsules = await listCapsules(signal);
       if (signal?.aborted) return null;
-      setState({ status: 'success', capsules: sortCapsules(capsules) });
+      setState({ status: 'success', capsules: sortCapsules(capsules.filter((capsule) => !deletedIds.current.has(capsule.id))) });
       return null;
     } catch (error) {
       if (signal?.aborted) return null;
@@ -73,6 +77,45 @@ export default function ListaCapsulasScreen() {
     const message = await load();
     if (mounted.current) setRefreshing(false);
     if (message && mounted.current) toast.error('Não foi possível atualizar', { description: message });
+  }
+
+  async function removeCapsule(capsule: CapsuleSummary) {
+    if (capsule.status !== 'SCHEDULED' || pendingDeletes.current.has(capsule.id)) return;
+    pendingDeletes.current.add(capsule.id);
+    setDeletingIds(new Set(pendingDeletes.current));
+    try {
+      await deleteCapsule(capsule.id);
+      deletedIds.current.add(capsule.id);
+      setState((current) => current.status === 'success'
+        ? { ...current, capsules: current.capsules.filter((item) => item.id !== capsule.id) }
+        : current);
+      if (mounted.current) toast.success('Cápsula excluída!');
+    } catch (error) {
+      if (mounted.current) toast.error('Não foi possível excluir a cápsula', {
+        description: getApiErrorDetails(error).message,
+      });
+    } finally {
+      pendingDeletes.current.delete(capsule.id);
+      setDeletingIds(new Set(pendingDeletes.current));
+    }
+  }
+
+  function confirmDelete(capsule: CapsuleSummary) {
+    if (capsule.status !== 'SCHEDULED' || confirming.current || pendingDeletes.current.has(capsule.id)) return;
+    confirming.current = true;
+    const dismiss = () => { confirming.current = false; };
+    Alert.alert(
+      'Excluir cápsula?',
+      `“${capsule.title}” será excluída e não será enviada. Esta ação não pode ser desfeita.`,
+      [
+        { text: 'Cancelar', style: 'cancel', onPress: dismiss },
+        { text: 'Excluir', style: 'destructive', onPress: () => {
+          dismiss();
+          void removeCapsule(capsule);
+        } },
+      ],
+      { cancelable: true, onDismiss: dismiss },
+    );
   }
 
   const capsules = useMemo(() => (state.status === 'success' ? state.capsules : []), [state]);
@@ -170,13 +213,15 @@ export default function ListaCapsulasScreen() {
     <AppShell>
       <FlatList
         data={state.status === 'success' ? visibleCapsules : []}
-        extraData={filter}
+        extraData={deletingIds}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
           <CapsuleCard
             capsule={item}
             index={index}
             onPress={() => router.push({ pathname: '/capsula/[id]', params: { id: item.id } })}
+            onLongPress={item.status === 'SCHEDULED' ? () => confirmDelete(item) : undefined}
+            deleting={deletingIds.has(item.id)}
           />
         )}
         ItemSeparatorComponent={Separator}

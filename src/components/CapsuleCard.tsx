@@ -91,20 +91,30 @@ interface CapsuleCardProps {
   capsule: CapsuleSummary;
   index?: number;
   onPress?: () => void;
+  onLongPress?: () => void;
+  deleting?: boolean;
 }
 
-export function CapsuleCard({ capsule, index = 0, onPress }: CapsuleCardProps) {
+export function CapsuleCard({ capsule, index = 0, onPress, onLongPress, deleting = false }: CapsuleCardProps) {
   const statusColor = STATUS_COLORS[capsule.status];
   const progress = capsule.status === 'SCHEDULED' ? getDeliveryProgress(capsule) : null;
   const attachments = `${capsule.fileCount} ${capsule.fileCount === 1 ? 'anexo' : 'anexos'}`;
+  const canDelete = capsule.status === 'SCHEDULED' && !!onLongPress && !deleting;
 
   return (
     <PopIn delay={Math.min(index, 8) * 60}>
       <Pressable
         accessibilityRole="button"
-        accessibilityHint="Abre o detalhe da cápsula"
-        disabled={!onPress}
+        accessibilityHint={canDelete ? 'Toque para abrir. Mantenha pressionado para excluir a cápsula agendada.' : 'Abre o detalhe da cápsula'}
+        accessibilityState={{ disabled: deleting, busy: deleting }}
+        accessibilityActions={canDelete ? [{ name: 'delete', label: 'Excluir cápsula agendada' }] : undefined}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === 'delete' && canDelete) onLongPress?.();
+        }}
+        disabled={deleting || (!onPress && !canDelete)}
         onPress={onPress}
+        onLongPress={canDelete ? onLongPress : undefined}
+        delayLongPress={500}
       >
         {({ pressed }) => (
           // Mesmo efeito do hover do card na web: o card sobe e a sombra cresce.

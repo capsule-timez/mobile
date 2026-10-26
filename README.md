@@ -194,4 +194,13 @@ bundles, mas não substitui a execução em dispositivo.
     API parada, deve aparecer o erro com "Tentar novamente"; com um id
     inexistente, "Cápsula não encontrada".
 
+14. Mantenha uma cápsula agendada pressionada: deve abrir a confirmação de
+    exclusão. Cancele e confira que ela permanece. Confirme: deve sumir da lista,
+    atualizar os contadores e mostrar o toast de sucesso, sem recarregar a lista.
+    Puxe para atualizar e confira que ela não retorna.
+15. Mantenha cápsulas enviadas e com falha pressionadas: não devem oferecer
+    exclusão. Com a API parada, tente excluir uma agendada: deve permanecer na
+    lista e o toast deve mostrar o erro. Se a cápsula for enviada enquanto a
+    confirmação estiver aberta, o conflito da API também deve aparecer no toast.
+
 Referência: [Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/).

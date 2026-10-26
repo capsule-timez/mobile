@@ -21,6 +21,47 @@ const page = (data: unknown[], pageNumber: number, totalPages: number) => ({
   meta: { page: pageNumber, pageSize: 100, total: data.length, totalPages },
 });
 
+test('deleteCapsule sends authenticated DELETE, accepts 204 and stays deleted on refresh', async (t) => {
+  const { deleteCapsule, listCapsules } = await import('../src/services/capsules');
+  const { configureHttpAuth } = await import('../src/services/http');
+  let stored = [summary()];
+  const requests: Array<{ url: string; options: RequestInit }> = [];
+  t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
+    requests.push({ url, options });
+    if (options.method === 'DELETE') {
+      stored = [];
+      return new Response(null, { status: 204 });
+    }
+    return new Response(JSON.stringify(page(stored, 1, 1)), { status: 200 });
+  });
+  configureHttpAuth(() => 'test-token', async () => {});
+  t.after(() => configureHttpAuth(() => null, async () => {}));
+  assert.equal((await listCapsules()).length, 1);
+  assert.equal(await deleteCapsule('c/1'), undefined);
+  assert.equal(requests[1].url, 'http://localhost:3000/api/capsules/c%2F1');
+  assert.equal(requests[1].options.method, 'DELETE');
+  assert.equal(new Headers(requests[1].options.headers).get('Authorization'), 'Bearer test-token');
+  assert.equal(requests[1].options.body, undefined);
+  assert.deepEqual(await listCapsules(), []);
+});
+
+test('deleteCapsule preserves API conflict messages for toast and propagates connection failures', async (t) => {
+  const { deleteCapsule, getApiErrorDetails } = await import('../src/services/capsules');
+  for (const status of ['SENT', 'FAILED']) {
+    const message = 'Apenas capsulas agendadas podem ser excluidas. Esta capsula ja foi processada.';
+    t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
+      code: 'CAPSULE_NOT_EDITABLE', message,
+    }), { status: 409 }));
+    await assert.rejects(deleteCapsule(status), (error: unknown) => {
+      assert.equal(getApiErrorDetails(error).message, message);
+      assert.equal(getApiErrorDetails(error).code, 'CAPSULE_NOT_EDITABLE');
+      return true;
+    });
+  }
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Network request failed'); });
+  await assert.rejects(deleteCapsule('c-1'), /conectar/);
+});
+
 test('listCapsules follows pagination and sends the bearer token', async (t) => {
   const { listCapsules } = await import('../src/services/capsules');
   const { configureHttpAuth } = await import('../src/services/http');
