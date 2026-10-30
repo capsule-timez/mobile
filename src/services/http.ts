@@ -10,6 +10,7 @@ export class HttpError extends Error {
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown;
   authenticated?: boolean;
+  timeoutMs?: number;
 };
 
 let getToken: () => string | null = () => null;
@@ -24,25 +25,27 @@ export function configureHttpAuth(
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, headers, authenticated = true, signal, ...rest } = options;
+  const { body, headers, authenticated = true, signal, timeoutMs = 15000, ...rest } = options;
   const token = authenticated ? getToken() : null;
+  // FormData segue como está: o fetch define o Content-Type com o boundary do multipart.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
   const requestHeaders = new Headers(headers);
   requestHeaders.set('Accept', 'application/json');
-  if (body !== undefined) requestHeaders.set('Content-Type', 'application/json');
+  if (body !== undefined && !isForm) requestHeaders.set('Content-Type', 'application/json');
   if (token) requestHeaders.set('Authorization', `Bearer ${token}`);
 
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener('abort', abort);
   if (signal?.aborted) abort();
-  const timeout = setTimeout(abort, 15000);
+  const timeout = setTimeout(abort, timeoutMs);
 
   try {
     const response = await fetch(`${API_URL}${path.startsWith('/') ? path : `/${path}`}`, {
       ...rest,
       signal: controller.signal,
       headers: requestHeaders,
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(body !== undefined ? { body: isForm ? body : JSON.stringify(body) } : {}),
     });
     const text = await response.text();
     let payload: unknown = null;

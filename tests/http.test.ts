@@ -58,3 +58,22 @@ test('malformed API success is rejected before saving a session', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ token: 'test-token', user: { id: 'user-1' } }), { status: 200 }));
   await assert.rejects(authApi.login({ email: 'user@example.com', password: 'password123' }), /inválida/);
 });
+
+test('FormData bodies are sent as multipart and the timeout can be extended', async (t) => {
+  const { http } = await import('../src/services/http');
+  let sent: RequestInit = {};
+  t.mock.method(globalThis, 'fetch', async (_url: string, options: RequestInit) => {
+    sent = options;
+    return new Response('{}', { status: 201 });
+  });
+  const timers = t.mock.method(globalThis, 'setTimeout');
+  const form = new FormData();
+  form.append('file', new Blob(['x'], { type: 'image/png' }), 'foto.png');
+  await http.post('/api/capsules/1/files', form, { timeoutMs: 60000 });
+  assert.equal(sent.body, form);
+  assert.equal(new Headers(sent.headers).has('Content-Type'), false);
+  assert.equal(timers.mock.calls[0].arguments[1], 60000);
+  await http.post('/api/capsules', { title: 'x' });
+  assert.equal(new Headers(sent.headers).get('Content-Type'), 'application/json');
+  assert.equal(timers.mock.calls[1].arguments[1], 15000);
+});
