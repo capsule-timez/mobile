@@ -1,9 +1,12 @@
 import { CAPSULE_STATUSES, type Capsule, type CapsuleFile, type CapsuleSummary, type CreateCapsuleInput, type PaginatedResponse } from '../types/capsule';
+import type { PickedImage } from '../utils/imageValidation';
 import { HttpError, http } from './http';
 
 const PAGE_SIZE = 100; 
 const MAX_PAGES = 20;
 const INVALID_RESPONSE = 'A API retornou dados inválidos. Tente novamente.';
+/** Uploads de até 10 MB em rede móvel passam fácil dos 15 s padrão. */
+const UPLOAD_TIMEOUT_MS = 60_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -79,6 +82,16 @@ export async function getCapsule(id: string, signal?: AbortSignal): Promise<Caps
 
 export async function createCapsule(input: CreateCapsuleInput): Promise<Capsule> {
   return parseCapsule(await http.post<unknown>('/api/capsules', input));
+}
+
+/** Envia uma imagem para a cápsula (a API aceita um arquivo por requisição, no campo `file`). */
+export async function uploadCapsuleFile(capsuleId: string, image: PickedImage): Promise<CapsuleFile> {
+  const form = new FormData();
+  // No React Native, o FormData lê o arquivo direto da URI local.
+  form.append('file', { uri: image.uri, name: image.name, type: image.type } as unknown as Blob);
+  const file = await http.post<unknown>(`/api/capsules/${encodeURIComponent(capsuleId)}/files`, form, { timeoutMs: UPLOAD_TIMEOUT_MS });
+  if (!isFile(file)) throw new Error(INVALID_RESPONSE);
+  return file;
 }
 
 export interface ApiErrorDetails {
