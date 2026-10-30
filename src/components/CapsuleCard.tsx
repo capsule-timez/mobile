@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 import type { CapsuleStatus, CapsuleSummary } from '../types/capsule';
 import { colors, fonts, stroke, strokeThin } from '../theme/tokens';
@@ -90,48 +90,59 @@ function ProgressBar({ progress, index }: { progress: number; index: number }) {
 interface CapsuleCardProps {
   capsule: CapsuleSummary;
   index?: number;
+  onPress?: () => void;
 }
 
-export function CapsuleCard({ capsule, index = 0 }: CapsuleCardProps) {
+export function CapsuleCard({ capsule, index = 0, onPress }: CapsuleCardProps) {
   const statusColor = STATUS_COLORS[capsule.status];
   const progress = capsule.status === 'SCHEDULED' ? getDeliveryProgress(capsule) : null;
   const attachments = `${capsule.fileCount} ${capsule.fileCount === 1 ? 'anexo' : 'anexos'}`;
 
   return (
     <PopIn delay={Math.min(index, 8) * 60}>
-      <Card offset={8} style={styles.card}>
-        <View style={styles.top}>
-          <ShadowBox offset={3} backgroundColor={statusColor} style={styles.iconBox}>
-            <Icon name={STATUS_ICONS[capsule.status]} size={20} />
-          </ShadowBox>
-          <CapsuleStatusBadge status={capsule.status} />
-          {capsule.fileCount > 0 && (
-            <View style={styles.files} accessible accessibilityLabel={attachments}>
-              <Icon name="paperclip" />
-              <Text style={styles.filesText}>{capsule.fileCount}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityHint="Abre o detalhe da cápsula"
+        disabled={!onPress}
+        onPress={onPress}
+      >
+        {({ pressed }) => (
+          // Mesmo efeito do hover do card na web: o card sobe e a sombra cresce.
+          <Card offset={pressed ? 11 : 8} style={styles.card} containerStyle={pressed && styles.cardPressed}>
+            <View style={styles.top}>
+              <ShadowBox offset={3} backgroundColor={statusColor} style={[styles.iconBox, pressed && styles.iconPressed]}>
+                <Icon name={STATUS_ICONS[capsule.status]} size={20} />
+              </ShadowBox>
+              <CapsuleStatusBadge status={capsule.status} />
+              {capsule.fileCount > 0 && (
+                <View style={styles.files} accessible accessibilityLabel={attachments}>
+                  <Icon name="paperclip" />
+                  <Text style={styles.filesText}>{capsule.fileCount}</Text>
+                </View>
+              )}
             </View>
-          )}
-        </View>
 
-        <Text style={styles.title} numberOfLines={2} accessibilityRole="header">{capsule.title}</Text>
-        <View style={[styles.highlight, { backgroundColor: statusColor }]}>
-          <Text style={styles.highlightText}>{getHighlight(capsule)}</Text>
-        </View>
+            <Text style={styles.title} numberOfLines={2} accessibilityRole="header">{capsule.title}</Text>
+            <View style={[styles.highlight, { backgroundColor: statusColor }]}>
+              <Text style={styles.highlightText}>{getHighlight(capsule)}</Text>
+            </View>
 
-        {progress !== null && <ProgressBar progress={progress} index={index} />}
+            {progress !== null && <ProgressBar progress={progress} index={index} />}
 
-        <DashedDivider style={styles.divider} />
-        <View style={styles.meta}>
-          <View style={styles.metaRow} accessible accessibilityLabel={`Data de entrega: ${formatDateTime(capsule.scheduleDate)}`}>
-            <View style={styles.metaIcon}><Icon name="calendar" /></View>
-            <Text style={styles.metaText}>{formatDateTime(capsule.scheduleDate)}</Text>
-          </View>
-          <View style={styles.metaRow} accessible accessibilityLabel={`Destinatário: ${capsule.recipientEmail}`}>
-            <View style={styles.metaIcon}><Icon name="mail" /></View>
-            <Text style={styles.metaText}>{capsule.recipientEmail}</Text>
-          </View>
-        </View>
-      </Card>
+            <DashedDivider style={styles.divider} />
+            <View style={styles.meta}>
+              <View style={styles.metaRow} accessible accessibilityLabel={`Data de entrega: ${formatDateTime(capsule.scheduleDate)}`}>
+                <View style={styles.metaIcon}><Icon name="calendar" /></View>
+                <Text style={styles.metaText}>{formatDateTime(capsule.scheduleDate)}</Text>
+              </View>
+              <View style={styles.metaRow} accessible accessibilityLabel={`Destinatário: ${capsule.recipientEmail}`}>
+                <View style={styles.metaIcon}><Icon name="mail" /></View>
+                <Text style={styles.metaText}>{capsule.recipientEmail}</Text>
+              </View>
+            </View>
+          </Card>
+        )}
+      </Pressable>
     </PopIn>
   );
 }
@@ -152,6 +163,8 @@ export function CapsuleCardSkeleton() {
 
 const styles = StyleSheet.create({
   card: { gap: 12 },
+  cardPressed: { transform: [{ translateX: -3 }, { translateY: -3 }] },
+  iconPressed: { transform: [{ rotate: '-8deg' }] },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconBox: { padding: 7 },
   files: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },

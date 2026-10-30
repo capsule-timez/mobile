@@ -24,7 +24,8 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
       {state.routes.map((route, index) => {
         const meta = TABS[route.name];
         if (!meta) return null;
-        const focused = state.index === index;
+        const current = state.routes[state.index]?.name;
+        const focused = state.index === index || (route.name === 'index' && current === 'capsula/[id]');
 
         function onPress() {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
