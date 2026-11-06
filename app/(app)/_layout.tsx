@@ -12,6 +12,7 @@ export default function AppLayout() {
       <Tabs.Screen name="index" options={{ title: 'Minhas cápsulas' }} />
       <Tabs.Screen name="nova" options={{ title: 'Nova cápsula' }} />
       <Tabs.Screen name="capsula/[id]" options={{ title: 'Cápsula', href: null }} />
+      <Tabs.Screen name="entrar" options={{ title: 'Entrar com código', href: null }} />
     </Tabs>
   );
 }

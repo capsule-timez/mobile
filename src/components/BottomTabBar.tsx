@@ -25,7 +25,8 @@ export function BottomTabBar({ state, navigation }: TabBarProps) {
         const meta = TABS[route.name];
         if (!meta) return null;
         const current = state.routes[state.index]?.name;
-        const focused = state.index === index || (route.name === 'index' && current === 'capsula/[id]');
+        // Detalhe e entrada por código partem da listagem: a aba dela continua marcada.
+        const focused = state.index === index || (route.name === 'index' && (current === 'capsula/[id]' || current === 'entrar'));
 
         function onPress() {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
