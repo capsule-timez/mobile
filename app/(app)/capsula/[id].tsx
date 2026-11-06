@@ -4,7 +4,7 @@ import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'r
 import { AppShell } from '../../../src/components/AppShell';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
-import { CapsuleStatusBadge } from '../../../src/components/CapsuleCard';
+import { CapsuleStatusBadge, GroupBadge } from '../../../src/components/CapsuleCard';
 import { EmptyState } from '../../../src/components/EmptyState';
 import { Icon } from '../../../src/components/Icon';
 import { PageHeader } from '../../../src/components/PageHeader';
@@ -103,7 +103,10 @@ function CapsuleDetail({ capsule }: { capsule: Capsule }) {
             <Text style={styles.metaValue}>{formatDateTime(capsule.scheduleDate)}</Text>
           </MetaItem>
           <MetaItem label="Status">
-            <CapsuleStatusBadge status={capsule.status} />
+            <View style={styles.badges}>
+              <CapsuleStatusBadge status={capsule.status} />
+              {capsule.type === 'GROUP' && <GroupBadge />}
+            </View>
           </MetaItem>
         </View>
         <Text style={styles.heading} accessibilityRole="header">Mensagem</Text>
@@ -214,6 +217,7 @@ const styles = StyleSheet.create({
   card: { gap: 12 },
   meta: { gap: 16, marginBottom: 8, paddingBottom: 20, borderBottomWidth: strokeThin, borderBottomColor: colors.ink },
   metaItem: { gap: 6, alignItems: 'flex-start' },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   metaLabel: { color: colors.ink, fontFamily: fonts.bodyBold, fontSize: 15 },
   metaValue: { color: colors.ink, fontFamily: fonts.bodyMedium, fontSize: 16, lineHeight: 24 },
   heading: {
