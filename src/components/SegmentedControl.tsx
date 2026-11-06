@@ -13,9 +13,10 @@ interface SegmentedControlProps<T extends string> {
   options: SegmentedOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  disabled?: boolean;
 }
 
-export function SegmentedControl<T extends string>({ label, options, value, onChange }: SegmentedControlProps<T>) {
+export function SegmentedControl<T extends string>({ label, options, value, onChange, disabled = false }: SegmentedControlProps<T>) {
   return (
     <View style={styles.group} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {options.map((option) => {
@@ -24,8 +25,9 @@ export function SegmentedControl<T extends string>({ label, options, value, onCh
           <Pressable
             key={option.value}
             accessibilityRole="radio"
-            accessibilityState={{ selected, checked: selected }}
+            accessibilityState={{ selected, checked: selected, disabled }}
             accessibilityLabel={option.count !== undefined ? `${option.label}, ${option.count}` : option.label}
+            disabled={disabled}
             onPress={() => onChange(option.value)}
           >
             {({ pressed }) => (
