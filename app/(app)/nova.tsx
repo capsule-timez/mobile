@@ -17,6 +17,7 @@ import { Button } from '../../src/components/Button';
 import { DateTimeField } from '../../src/components/DateTimeField';
 import { FormField } from '../../src/components/FormField';
 import { ImagePickerField } from '../../src/components/ImagePickerField';
+import { InviteCodeCard } from '../../src/components/InviteCodeCard';
 import { Icon, type IconName } from '../../src/components/Icon';
 import { PageHeader } from '../../src/components/PageHeader';
 import { PopIn } from '../../src/components/PopIn';
@@ -25,7 +26,7 @@ import { ShadowBox } from '../../src/components/ShadowBox';
 import { useToast } from '../../src/components/Toast';
 import { useImageSelection } from '../../src/hooks/useImageSelection';
 import { createCapsule, getApiErrorDetails } from '../../src/services/capsules';
-import type { CapsuleType } from '../../src/types/capsule';
+import type { Capsule, CapsuleType } from '../../src/types/capsule';
 import { colors, contentMaxWidth, fonts, stroke, strokeThin } from '../../src/theme/tokens';
 import {
   SCHEDULE_PRESETS,
@@ -102,6 +103,8 @@ export default function NovaCapsulaScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Cápsula em grupo recém-criada: a tela troca o formulário pelo código de convite.
+  const [createdGroup, setCreatedGroup] = useState<Capsule | null>(null);
   const submittingRef = useRef(false);
   const images = useImageSelection();
 
@@ -165,6 +168,7 @@ export default function NovaCapsulaScreen() {
     setValues(INITIAL_VALUES);
     setErrors({});
     setFormError(null);
+    setCreatedGroup(null);
     images.reset();
   }
 
@@ -204,9 +208,19 @@ export default function NovaCapsulaScreen() {
           : {}),
       });
 
+      const isGroup = capsule.type === 'GROUP' && Boolean(capsule.inviteCode);
+
       if (images.items.length > 0) {
         setUploading(true);
         const { failed } = await images.upload(capsule.id);
+        if (failed.length > 0 && isGroup) {
+          // O código de convite continua sendo o próximo passo; o aviso só complementa.
+          toast.error('Cápsula criada, mas algumas imagens não foram enviadas', {
+            description: `Não enviadas: ${failed.join(', ')}.`,
+          });
+          setCreatedGroup(capsule);
+          return;
+        }
         if (failed.length > 0) {
           // A cápsula já existe: leva ao detalhe, onde o usuário vê o que foi anexado.
           toast.error('Cápsula criada, mas algumas imagens não foram enviadas', {
@@ -216,6 +230,13 @@ export default function NovaCapsulaScreen() {
           router.push({ pathname: '/capsula/[id]', params: { id: capsule.id } });
           return;
         }
+      }
+
+      if (isGroup) {
+        toast.success('Cápsula em grupo criada!');
+        setCreatedGroup(capsule);
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+        return;
       }
 
       toast.success('Cápsula agendada!', {
@@ -268,180 +289,193 @@ export default function NovaCapsulaScreen() {
             />
           </PopIn>
 
-          {formError && <Alert tone="error">{formError}</Alert>}
+          {createdGroup?.inviteCode ? (
+            <PopIn>
+              <InviteCodeCard
+                title={createdGroup.title}
+                inviteCode={createdGroup.inviteCode}
+                contributionDeadline={createdGroup.contributionDeadline}
+                onDone={leave}
+              />
+            </PopIn>
+          ) : (
+            <>
+              {formError && <Alert tone="error">{formError}</Alert>}
 
-          <StepCard number={1} title="Escreva a mensagem" delay={0} onLayout={trackStep(1)}>
-            <SegmentedControl
-              label="Tipo de cápsula"
-              options={CAPSULE_TYPE_OPTIONS}
-              value={values.capsuleType}
-              onChange={handleCapsuleTypeChange}
-              disabled={submitting}
-            />
-            {values.capsuleType === 'GROUP' && (
-              <Text style={styles.typeHint}>
-                Outras pessoas entram com um código de convite e contribuem até o prazo que você escolher.
-              </Text>
-            )}
-            <FormField
-              label="Título"
-              counter={`${values.title.length}/${TITLE_MAX_LENGTH}`}
-              inputRef={titleRef}
-              value={values.title}
-              onChangeText={(title) => { setValues((current) => ({ ...current, title })); clearError('title'); }}
-              maxLength={TITLE_MAX_LENGTH}
-              placeholder="Para mim daqui a um ano"
-              error={errors.title}
-              editable={!submitting}
-              returnKeyType="next"
-              onSubmitEditing={() => textRef.current?.focus()}
-              submitBehavior="submit"
-            />
-            <FormField
-              label="Mensagem"
-              counter={`${values.text.length.toLocaleString('pt-BR')}/${TEXT_MAX_LENGTH.toLocaleString('pt-BR')}`}
-              inputRef={textRef}
-              value={values.text}
-              onChangeText={(text) => { setValues((current) => ({ ...current, text })); clearError('text'); }}
-              maxLength={TEXT_MAX_LENGTH}
-              multiline
-              placeholder="O que você quer dizer ao futuro?"
-              error={errors.text}
-              editable={!submitting}
-            />
-          </StepCard>
-
-          <StepCard number={2} title="Quando entregar?" highlight delay={80} onLayout={trackStep(2)}>
-            <View style={styles.presets} accessibilityRole="toolbar" accessibilityLabel="Atalhos de data">
-              {SCHEDULE_PRESETS.map((preset) => (
-                <Pressable
-                  key={preset.label}
-                  accessibilityRole="button"
+              <StepCard number={1} title="Escreva a mensagem" delay={0} onLayout={trackStep(1)}>
+                <SegmentedControl
+                  label="Tipo de cápsula"
+                  options={CAPSULE_TYPE_OPTIONS}
+                  value={values.capsuleType}
+                  onChange={handleCapsuleTypeChange}
                   disabled={submitting}
-                  onPress={() => setScheduleDate(applySchedulePreset(preset.apply))}
-                >
-                  {({ pressed }) => (
-                    <ShadowBox
-                      offset={3}
-                      shadowVisible={!pressed}
-                      backgroundColor={pressed ? colors.orange : colors.surface}
-                      style={[styles.preset, pressed && styles.presetPressed]}
-                    >
-                      <Text style={styles.presetText}>{preset.label}</Text>
-                    </ShadowBox>
-                  )}
-                </Pressable>
-              ))}
-            </View>
-            <DateTimeField
-              label="Data e hora de entrega"
-              value={values.scheduleDate}
-              onChange={setScheduleDate}
-              minimumDate={minScheduleDate}
-              error={scheduleError}
-            />
-            {schedulePreview && (
-              <PopIn key={schedulePreview} duration={180}>
-                <View style={styles.preview}>
-                  <View style={styles.previewIcon}><Icon name="lock" size={16} color={colors.surface} /></View>
-                  <Text style={styles.previewText}>
-                    Lacrada até <Text style={styles.previewStrong}>{formatDateTimeFromDate(new Date(schedulePreview))}</Text>
-                    {' '}({formatRelativeTime(schedulePreview)})
+                />
+                {values.capsuleType === 'GROUP' && (
+                  <Text style={styles.typeHint}>
+                    Outras pessoas entram com um código de convite e contribuem até o prazo que você escolher.
                   </Text>
+                )}
+                <FormField
+                  label="Título"
+                  counter={`${values.title.length}/${TITLE_MAX_LENGTH}`}
+                  inputRef={titleRef}
+                  value={values.title}
+                  onChangeText={(title) => { setValues((current) => ({ ...current, title })); clearError('title'); }}
+                  maxLength={TITLE_MAX_LENGTH}
+                  placeholder="Para mim daqui a um ano"
+                  error={errors.title}
+                  editable={!submitting}
+                  returnKeyType="next"
+                  onSubmitEditing={() => textRef.current?.focus()}
+                  submitBehavior="submit"
+                />
+                <FormField
+                  label="Mensagem"
+                  counter={`${values.text.length.toLocaleString('pt-BR')}/${TEXT_MAX_LENGTH.toLocaleString('pt-BR')}`}
+                  inputRef={textRef}
+                  value={values.text}
+                  onChangeText={(text) => { setValues((current) => ({ ...current, text })); clearError('text'); }}
+                  maxLength={TEXT_MAX_LENGTH}
+                  multiline
+                  placeholder="O que você quer dizer ao futuro?"
+                  error={errors.text}
+                  editable={!submitting}
+                />
+              </StepCard>
+
+              <StepCard number={2} title="Quando entregar?" highlight delay={80} onLayout={trackStep(2)}>
+                <View style={styles.presets} accessibilityRole="toolbar" accessibilityLabel="Atalhos de data">
+                  {SCHEDULE_PRESETS.map((preset) => (
+                    <Pressable
+                      key={preset.label}
+                      accessibilityRole="button"
+                      disabled={submitting}
+                      onPress={() => setScheduleDate(applySchedulePreset(preset.apply))}
+                    >
+                      {({ pressed }) => (
+                        <ShadowBox
+                          offset={3}
+                          shadowVisible={!pressed}
+                          backgroundColor={pressed ? colors.orange : colors.surface}
+                          style={[styles.preset, pressed && styles.presetPressed]}
+                        >
+                          <Text style={styles.presetText}>{preset.label}</Text>
+                        </ShadowBox>
+                      )}
+                    </Pressable>
+                  ))}
                 </View>
-              </PopIn>
-            )}
-            {values.capsuleType === 'GROUP' && (
-              <DateTimeField
-                label="Prazo para contribuições"
-                value={values.contributionDeadline}
-                onChange={setContributionDeadline}
-                minimumDate={minScheduleDate}
-                error={errors.contributionDeadline}
-                hint="Depois dele ninguém mais contribui. Precisa ser antes da entrega."
-              />
-            )}
-          </StepCard>
+                <DateTimeField
+                  label="Data e hora de entrega"
+                  value={values.scheduleDate}
+                  onChange={setScheduleDate}
+                  minimumDate={minScheduleDate}
+                  error={scheduleError}
+                />
+                {schedulePreview && (
+                  <PopIn key={schedulePreview} duration={180}>
+                    <View style={styles.preview}>
+                      <View style={styles.previewIcon}><Icon name="lock" size={16} color={colors.surface} /></View>
+                      <Text style={styles.previewText}>
+                        Lacrada até <Text style={styles.previewStrong}>{formatDateTimeFromDate(new Date(schedulePreview))}</Text>
+                        {' '}({formatRelativeTime(schedulePreview)})
+                      </Text>
+                    </View>
+                  </PopIn>
+                )}
+                {values.capsuleType === 'GROUP' && (
+                  <DateTimeField
+                    label="Prazo para contribuições"
+                    value={values.contributionDeadline}
+                    onChange={setContributionDeadline}
+                    minimumDate={minScheduleDate}
+                    error={errors.contributionDeadline}
+                    hint="Depois dele ninguém mais contribui. Precisa ser antes da entrega."
+                  />
+                )}
+              </StepCard>
 
-          <StepCard number={3} title="Para quem?" delay={160} onLayout={trackStep(3)}>
-            <View style={styles.options} accessibilityRole="radiogroup" accessibilityLabel="Destinatário">
-              {RECIPIENT_OPTIONS.map((option) => {
-                const selected = values.recipientMode === option.mode;
-                return (
-                  <Pressable
-                    key={option.mode}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected, checked: selected, disabled: submitting }}
-                    accessibilityLabel={`${option.label}. ${option.description}`}
-                    disabled={submitting}
-                    onPress={() => handleRecipientModeChange(option.mode)}
-                  >
-                    {({ pressed }) => (
-                      <ShadowBox
-                        offset={4}
-                        shadowVisible={selected}
-                        backgroundColor={selected ? colors.orange : pressed ? colors.yellowSoft : colors.surface}
-                        style={[styles.option, selected && styles.optionSelected]}
+              <StepCard number={3} title="Para quem?" delay={160} onLayout={trackStep(3)}>
+                <View style={styles.options} accessibilityRole="radiogroup" accessibilityLabel="Destinatário">
+                  {RECIPIENT_OPTIONS.map((option) => {
+                    const selected = values.recipientMode === option.mode;
+                    return (
+                      <Pressable
+                        key={option.mode}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected, checked: selected, disabled: submitting }}
+                        accessibilityLabel={`${option.label}. ${option.description}`}
+                        disabled={submitting}
+                        onPress={() => handleRecipientModeChange(option.mode)}
                       >
-                        <View style={[styles.optionIcon, selected && { backgroundColor: colors.ink }]}>
-                          <Icon name={option.icon} size={20} color={selected ? colors.orange : colors.ink} />
-                        </View>
-                        <View style={styles.optionText}>
-                          <Text style={styles.optionLabel}>{option.label}</Text>
-                          <Text style={styles.optionDescription}>{option.description}</Text>
-                        </View>
-                      </ShadowBox>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
+                        {({ pressed }) => (
+                          <ShadowBox
+                            offset={4}
+                            shadowVisible={selected}
+                            backgroundColor={selected ? colors.orange : pressed ? colors.yellowSoft : colors.surface}
+                            style={[styles.option, selected && styles.optionSelected]}
+                          >
+                            <View style={[styles.optionIcon, selected && { backgroundColor: colors.ink }]}>
+                              <Icon name={option.icon} size={20} color={selected ? colors.orange : colors.ink} />
+                            </View>
+                            <View style={styles.optionText}>
+                              <Text style={styles.optionLabel}>{option.label}</Text>
+                              <Text style={styles.optionDescription}>{option.description}</Text>
+                            </View>
+                          </ShadowBox>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
-            {values.recipientMode === 'self' ? (
-              <View style={styles.self}>
-                <View style={styles.selfIcon}><Icon name="mail" size={16} /></View>
-                <Text style={styles.selfText}>
-                  Será entregue em <Text style={styles.selfStrong}>{user?.email}</Text>
-                </Text>
+                {values.recipientMode === 'self' ? (
+                  <View style={styles.self}>
+                    <View style={styles.selfIcon}><Icon name="mail" size={16} /></View>
+                    <Text style={styles.selfText}>
+                      Será entregue em <Text style={styles.selfStrong}>{user?.email}</Text>
+                    </Text>
+                  </View>
+                ) : (
+                  <FormField
+                    label="E-mail do destinatário"
+                    inputRef={emailRef}
+                    value={values.recipientEmail}
+                    onChangeText={(recipientEmail) => { setValues((current) => ({ ...current, recipientEmail })); clearError('recipientEmail'); }}
+                    placeholder="pessoa@exemplo.com"
+                    error={errors.recipientEmail}
+                    editable={!submitting}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    maxLength={254}
+                    returnKeyType="done"
+                    onSubmitEditing={() => void handleSubmit()}
+                  />
+                )}
+              </StepCard>
+
+              <StepCard number={4} title="Imagens (opcional)" delay={240} onLayout={trackStep(4)}>
+                <ImagePickerField
+                  items={images.items}
+                  maxFiles={images.maxFiles}
+                  remaining={images.remaining}
+                  disabled={submitting}
+                  onAdd={images.add}
+                  onRemove={images.remove}
+                />
+              </StepCard>
+
+              <View style={styles.actions}>
+                <Button variant="ghost" onPress={leave} disabled={submitting}>Cancelar</Button>
+                <Button icon="lock" loading={submitting} onPress={() => void handleSubmit()}>
+                  {uploading ? 'Enviando imagens…' : submitting ? 'Lacrando…' : 'Lacrar cápsula'}
+                </Button>
               </View>
-            ) : (
-              <FormField
-                label="E-mail do destinatário"
-                inputRef={emailRef}
-                value={values.recipientEmail}
-                onChangeText={(recipientEmail) => { setValues((current) => ({ ...current, recipientEmail })); clearError('recipientEmail'); }}
-                placeholder="pessoa@exemplo.com"
-                error={errors.recipientEmail}
-                editable={!submitting}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                textContentType="emailAddress"
-                maxLength={254}
-                returnKeyType="done"
-                onSubmitEditing={() => void handleSubmit()}
-              />
-            )}
-          </StepCard>
-
-          <StepCard number={4} title="Imagens (opcional)" delay={240} onLayout={trackStep(4)}>
-            <ImagePickerField
-              items={images.items}
-              maxFiles={images.maxFiles}
-              remaining={images.remaining}
-              disabled={submitting}
-              onAdd={images.add}
-              onRemove={images.remove}
-            />
-          </StepCard>
-
-          <View style={styles.actions}>
-            <Button variant="ghost" onPress={leave} disabled={submitting}>Cancelar</Button>
-            <Button icon="lock" loading={submitting} onPress={() => void handleSubmit()}>
-              {uploading ? 'Enviando imagens…' : submitting ? 'Lacrando…' : 'Lacrar cápsula'}
-            </Button>
-          </View>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </AppShell>
