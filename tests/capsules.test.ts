@@ -194,3 +194,65 @@ test('uploadCapsuleFile posts one multipart file and validates the response', as
   await assert.rejects(uploadCapsuleFile('c-1', { uri: 'file:///a.jpg', name: 'a.jpg', type: 'image/jpeg' }), /inválidos/);
   configureHttpAuth(() => null, async () => {});
 });
+
+const groupDetail = (overrides: Record<string, unknown> = {}) => ({
+  ...summary(), fileCount: undefined, text: 'Olá, turma', files: [],
+  type: 'GROUP', contributionDeadline: '2026-12-20T12:00:00.000Z',
+  members: [{ name: 'Ana', role: 'OWNER' }, { name: 'Bruno', role: 'MEMBER' }],
+  ...overrides,
+});
+
+test('joinCapsule posts the normalized invite code and returns the capsule without requiring the code', async (t) => {
+  const { joinCapsule } = await import('../src/services/capsules');
+  const requests: Array<{ url: string; options: RequestInit }> = [];
+  t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
+    requests.push({ url, options });
+    return new Response(JSON.stringify(groupDetail()), { status: 200 });
+  });
+
+  const capsule = await joinCapsule('  k7q-2zx ');
+
+  assert.equal(requests[0].url, 'http://localhost:3000/api/capsules/join');
+  assert.equal(requests[0].options.method, 'POST');
+  assert.deepEqual(JSON.parse(requests[0].options.body as string), { inviteCode: 'K7Q2ZX' });
+  assert.equal(capsule.type, 'GROUP');
+  assert.equal(capsule.inviteCode, undefined);
+  assert.deepEqual(capsule.members?.map((member) => member.role), ['OWNER', 'MEMBER']);
+});
+
+test('joinCapsule surfaces the API message for unknown codes and closed deadlines', async (t) => {
+  const { joinCapsule, getApiErrorDetails } = await import('../src/services/capsules');
+  const { HttpError } = await import('../src/services/http');
+
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ status: 'error', code: 'NOT_FOUND', message: 'Código de convite inválido.' }), { status: 404 }));
+  const notFound = await joinCapsule('NOPE').catch((error: unknown) => error);
+  assert.ok(notFound instanceof HttpError);
+  assert.equal(getApiErrorDetails(notFound).message, 'Código de convite inválido.');
+
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ status: 'error', code: 'CONFLICT', message: 'O prazo de contribuição desta cápsula já terminou.' }), { status: 409 }));
+  const closed = await joinCapsule('K7Q2ZX').catch((error: unknown) => error);
+  assert.equal(getApiErrorDetails(closed).message, 'O prazo de contribuição desta cápsula já terminou.');
+});
+
+test('getCapsule accepts group members and rejects malformed ones', async (t) => {
+  const { getCapsule } = await import('../src/services/capsules');
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(groupDetail({ inviteCode: 'K7Q2ZX' })), { status: 200 }));
+  const capsule = await getCapsule('c-1');
+  assert.equal(capsule.inviteCode, 'K7Q2ZX');
+  assert.equal(capsule.members?.length, 2);
+
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(groupDetail({ members: [{ name: 'Ana', role: 'ADMIN' }] })), { status: 200 }));
+  await assert.rejects(getCapsule('c-1'), /inválidos/);
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(groupDetail({ members: 'Ana' })), { status: 200 }));
+  await assert.rejects(getCapsule('c-1'), /inválidos/);
+});
+
+test('listCapsules accepts the capsule type and rejects unknown ones', async (t) => {
+  const { listCapsules } = await import('../src/services/capsules');
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(page([summary({ type: 'GROUP' }), summary({ id: 'c-2' })], 1, 1)), { status: 200 }));
+  const capsules = await listCapsules();
+  assert.deepEqual(capsules.map((capsule) => capsule.type), ['GROUP', undefined]);
+
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(page([summary({ type: 'PAIR' })], 1, 1)), { status: 200 }));
+  await assert.rejects(listCapsules(), /inválidos/);
+});
