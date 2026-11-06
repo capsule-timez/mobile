@@ -9,6 +9,7 @@ import {
   getMinScheduleDate,
   parseDateTimeInput,
   validateCapsuleForm,
+  validateContributionDeadline,
   validateScheduleDate,
   type CapsuleFormValues,
 } from '../src/utils/capsuleValidation';
@@ -18,9 +19,11 @@ import type { CapsuleSummary } from '../src/types/capsule';
 const NOW = new Date(2026, 9, 12, 20, 0, 0); // 12/10/2026 20:00, fuso local
 
 const validValues = (overrides: Partial<CapsuleFormValues> = {}): CapsuleFormValues => ({
+  capsuleType: 'INDIVIDUAL',
   title: 'Para mim',
   text: 'Olá, futuro',
   scheduleDate: new Date(NOW.getTime() + 24 * 3_600_000),
+  contributionDeadline: null,
   recipientMode: 'self',
   recipientEmail: '',
   ...overrides,
@@ -120,4 +123,31 @@ test('delivery progress is clamped between creation and schedule date', () => {
   assert.equal(getDeliveryProgress(base, start + 5 * day), 0.5);
   assert.equal(getDeliveryProgress(base, start + 99 * day), 1);
   assert.equal(getDeliveryProgress({ createdAt: base.scheduleDate, scheduleDate: base.createdAt }), 1);
+});
+
+const HOUR = 3_600_000;
+
+test('contribution deadline must exist, be in the future and come before delivery', () => {
+  const schedule = new Date(NOW.getTime() + 48 * HOUR);
+  assert.match(validateContributionDeadline(null, schedule, NOW) ?? '', /Escolha/);
+  assert.match(validateContributionDeadline(new Date(Number.NaN), schedule, NOW) ?? '', /inválida/);
+  assert.match(validateContributionDeadline(new Date(NOW.getTime() - HOUR), schedule, NOW) ?? '', /futuro/);
+  assert.match(validateContributionDeadline(new Date(NOW.getTime() + 60_000), schedule, NOW) ?? '', /futuro/);
+  assert.match(validateContributionDeadline(schedule, schedule, NOW) ?? '', /antes da data de entrega/);
+  assert.match(validateContributionDeadline(new Date(schedule.getTime() + HOUR), schedule, NOW) ?? '', /antes da data de entrega/);
+  assert.equal(validateContributionDeadline(new Date(NOW.getTime() + 24 * HOUR), schedule, NOW), undefined);
+  // Sem data de entrega o erro fica só no campo de entrega.
+  assert.equal(validateContributionDeadline(new Date(NOW.getTime() + 24 * HOUR), null, NOW), undefined);
+});
+
+test('form validation only requires the contribution deadline for group capsules', () => {
+  assert.deepEqual(validateCapsuleForm(validValues({ contributionDeadline: null }), NOW), {});
+
+  const group = validValues({ capsuleType: 'GROUP', scheduleDate: new Date(NOW.getTime() + 48 * HOUR) });
+  assert.match(validateCapsuleForm(group, NOW).contributionDeadline ?? '', /Escolha/);
+  assert.deepEqual(validateCapsuleForm({ ...group, contributionDeadline: new Date(NOW.getTime() + 24 * HOUR) }, NOW), {});
+  assert.match(
+    validateCapsuleForm({ ...group, contributionDeadline: new Date(NOW.getTime() + 72 * HOUR) }, NOW).contributionDeadline ?? '',
+    /antes da data de entrega/,
+  );
 });
