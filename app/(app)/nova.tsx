@@ -16,11 +16,13 @@ import { AppShell } from '../../src/components/AppShell';
 import { Button } from '../../src/components/Button';
 import { DateTimeField } from '../../src/components/DateTimeField';
 import { FormField } from '../../src/components/FormField';
+import { ImagePickerField } from '../../src/components/ImagePickerField';
 import { Icon, type IconName } from '../../src/components/Icon';
 import { PageHeader } from '../../src/components/PageHeader';
 import { PopIn } from '../../src/components/PopIn';
 import { ShadowBox } from '../../src/components/ShadowBox';
 import { useToast } from '../../src/components/Toast';
+import { useImageSelection } from '../../src/hooks/useImageSelection';
 import { createCapsule, getApiErrorDetails } from '../../src/services/capsules';
 import { colors, contentMaxWidth, fonts, stroke, strokeThin } from '../../src/theme/tokens';
 import {
@@ -46,7 +48,7 @@ const INITIAL_VALUES: CapsuleFormValues = {
   recipientEmail: '',
 };
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 
 const FIELD_ORDER: CapsuleFormField[] = ['title', 'text', 'scheduleDate', 'recipientEmail'];
 const FIELD_STEP: Record<CapsuleFormField, Step> = { title: 1, text: 1, scheduleDate: 2, recipientEmail: 3 };
@@ -89,7 +91,9 @@ export default function NovaCapsulaScreen() {
   const [errors, setErrors] = useState<CapsuleFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const submittingRef = useRef(false);
+  const images = useImageSelection();
 
   const scrollRef = useRef<ScrollView>(null);
   const titleRef = useRef<TextInput>(null);
@@ -130,10 +134,15 @@ export default function NovaCapsulaScreen() {
   }
 
   // As abas ficam montadas: limpa o rascunho ao sair, para a próxima cápsula começar em branco.
-  function leave() {
+  function resetForm() {
     setValues(INITIAL_VALUES);
     setErrors({});
     setFormError(null);
+    images.reset();
+  }
+
+  function leave() {
+    resetForm();
     router.navigate('/(app)/index');
   }
 
@@ -163,6 +172,21 @@ export default function NovaCapsulaScreen() {
         recipientEmail,
         scheduleDate: values.scheduleDate.toISOString(),
       });
+
+      if (images.items.length > 0) {
+        setUploading(true);
+        const { failed } = await images.upload(capsule.id);
+        if (failed.length > 0) {
+          // A cápsula já existe: leva ao detalhe, onde o usuário vê o que foi anexado.
+          toast.error('Cápsula criada, mas algumas imagens não foram enviadas', {
+            description: `Não enviadas: ${failed.join(', ')}.`,
+          });
+          resetForm();
+          router.push({ pathname: '/capsula/[id]', params: { id: capsule.id } });
+          return;
+        }
+      }
+
       toast.success('Cápsula agendada!', {
         description: `“${capsule.title}” será entregue ${formatRelativeTime(capsule.scheduleDate)}.`,
       });
@@ -188,6 +212,7 @@ export default function NovaCapsulaScreen() {
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
+      setUploading(false);
     }
   }
 
@@ -347,10 +372,21 @@ export default function NovaCapsulaScreen() {
             )}
           </StepCard>
 
+          <StepCard number={4} title="Imagens (opcional)" delay={240} onLayout={trackStep(4)}>
+            <ImagePickerField
+              items={images.items}
+              maxFiles={images.maxFiles}
+              remaining={images.remaining}
+              disabled={submitting}
+              onAdd={images.add}
+              onRemove={images.remove}
+            />
+          </StepCard>
+
           <View style={styles.actions}>
             <Button variant="ghost" onPress={leave} disabled={submitting}>Cancelar</Button>
             <Button icon="lock" loading={submitting} onPress={() => void handleSubmit()}>
-              {submitting ? 'Lacrando…' : 'Lacrar cápsula'}
+              {uploading ? 'Enviando imagens…' : submitting ? 'Lacrando…' : 'Lacrar cápsula'}
             </Button>
           </View>
         </ScrollView>
