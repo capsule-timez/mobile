@@ -42,6 +42,10 @@ function parseCapsule(value: unknown): Capsule {
     typeof value.text !== 'string' ||
     typeof value.scheduleDate !== 'string' || Number.isNaN(Date.parse(value.scheduleDate))
   ) throw new Error(INVALID_RESPONSE);
+  // Sem o código de convite a cápsula em grupo não tem como receber participantes.
+  if (value.type === 'GROUP' && (typeof value.inviteCode !== 'string' || !value.inviteCode)) {
+    throw new Error(INVALID_RESPONSE);
+  }
   return value as unknown as Capsule;
 }
 
