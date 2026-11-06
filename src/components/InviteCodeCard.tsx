@@ -10,7 +10,9 @@ interface InviteCodeCardProps {
   title: string;
   inviteCode: string;
   contributionDeadline?: string;
-  onDone: () => void;
+  heading?: string;
+  /** Sem ele o botão "Concluir" não aparece (ex.: no detalhe da cápsula). */
+  onDone?: () => void;
 }
 
 export function buildInviteMessage(title: string, inviteCode: string, contributionDeadline?: string): string {
@@ -18,7 +20,13 @@ export function buildInviteMessage(title: string, inviteCode: string, contributi
   return `Participe da cápsula “${title}”! Use o código de convite ${inviteCode} no app.${deadline}`;
 }
 
-export function InviteCodeCard({ title, inviteCode, contributionDeadline, onDone }: InviteCodeCardProps) {
+export function InviteCodeCard({
+  title,
+  inviteCode,
+  contributionDeadline,
+  heading = 'Cápsula em grupo criada!',
+  onDone,
+}: InviteCodeCardProps) {
   const toast = useToast();
 
   async function handleShare() {
@@ -40,7 +48,7 @@ export function InviteCodeCard({ title, inviteCode, contributionDeadline, onDone
 
   return (
     <ShadowBox offset={8} backgroundColor={colors.yellow} style={styles.card}>
-      <Text style={styles.heading} accessibilityRole="header">Cápsula em grupo criada!</Text>
+      <Text style={styles.heading} accessibilityRole="header">{heading}</Text>
       <Text style={styles.body}>
         Compartilhe o código abaixo para outras pessoas entrarem em <Text style={styles.strong}>“{title}”</Text>.
       </Text>
@@ -59,7 +67,7 @@ export function InviteCodeCard({ title, inviteCode, contributionDeadline, onDone
         <Button icon="send" onPress={() => void handleShare()}>Compartilhar</Button>
         <Button variant="secondary" icon="copy" onPress={() => void handleCopy()}>Copiar</Button>
       </View>
-      <Button variant="ghost" onPress={onDone}>Concluir</Button>
+      {onDone && <Button variant="ghost" onPress={onDone}>Concluir</Button>}
     </ShadowBox>
   );
 }
