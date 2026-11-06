@@ -20,10 +20,12 @@ import { ImagePickerField } from '../../src/components/ImagePickerField';
 import { Icon, type IconName } from '../../src/components/Icon';
 import { PageHeader } from '../../src/components/PageHeader';
 import { PopIn } from '../../src/components/PopIn';
+import { SegmentedControl, type SegmentedOption } from '../../src/components/SegmentedControl';
 import { ShadowBox } from '../../src/components/ShadowBox';
 import { useToast } from '../../src/components/Toast';
 import { useImageSelection } from '../../src/hooks/useImageSelection';
 import { createCapsule, getApiErrorDetails } from '../../src/services/capsules';
+import type { CapsuleType } from '../../src/types/capsule';
 import { colors, contentMaxWidth, fonts, stroke, strokeThin } from '../../src/theme/tokens';
 import {
   SCHEDULE_PRESETS,
@@ -32,6 +34,7 @@ import {
   applySchedulePreset,
   getMinScheduleDate,
   validateCapsuleForm,
+  validateContributionDeadline,
   validateScheduleDate,
   type CapsuleFormErrors,
   type CapsuleFormField,
@@ -41,17 +44,24 @@ import {
 import { formatDateTimeFromDate, formatRelativeTime } from '../../src/utils/formatDate';
 
 const INITIAL_VALUES: CapsuleFormValues = {
+  capsuleType: 'INDIVIDUAL',
   title: '',
   text: '',
   scheduleDate: null,
+  contributionDeadline: null,
   recipientMode: 'self',
   recipientEmail: '',
 };
 
 type Step = 1 | 2 | 3 | 4;
 
-const FIELD_ORDER: CapsuleFormField[] = ['title', 'text', 'scheduleDate', 'recipientEmail'];
-const FIELD_STEP: Record<CapsuleFormField, Step> = { title: 1, text: 1, scheduleDate: 2, recipientEmail: 3 };
+const FIELD_ORDER: CapsuleFormField[] = ['title', 'text', 'scheduleDate', 'contributionDeadline', 'recipientEmail'];
+const FIELD_STEP: Record<CapsuleFormField, Step> = { title: 1, text: 1, scheduleDate: 2, contributionDeadline: 2, recipientEmail: 3 };
+
+const CAPSULE_TYPE_OPTIONS: SegmentedOption<CapsuleType>[] = [
+  { value: 'INDIVIDUAL', label: 'Individual' },
+  { value: 'GROUP', label: 'Em grupo' },
+];
 
 const RECIPIENT_OPTIONS: { mode: RecipientMode; label: string; description: string; icon: IconName }[] = [
   { mode: 'self', label: 'Para mim', description: 'Chega no seu e-mail', icon: 'user' },
@@ -115,7 +125,24 @@ export default function NovaCapsulaScreen() {
   function setScheduleDate(date: Date) {
     setValues((current) => ({ ...current, scheduleDate: date }));
     // Data no passado é sinalizada assim que escolhida, sem esperar o envio.
-    setErrors((current) => ({ ...current, scheduleDate: validateScheduleDate(date) }));
+    setErrors((current) => ({
+      ...current,
+      scheduleDate: validateScheduleDate(date),
+      // Mudar a entrega pode deixar o prazo já escolhido depois dela (ou voltar a ser válido).
+      contributionDeadline: values.capsuleType === 'GROUP' && values.contributionDeadline
+        ? validateContributionDeadline(values.contributionDeadline, date)
+        : current.contributionDeadline,
+    }));
+  }
+
+  function setContributionDeadline(date: Date) {
+    setValues((current) => ({ ...current, contributionDeadline: date }));
+    setErrors((current) => ({ ...current, contributionDeadline: validateContributionDeadline(date, values.scheduleDate) }));
+  }
+
+  function handleCapsuleTypeChange(capsuleType: CapsuleType) {
+    setValues((current) => ({ ...current, capsuleType }));
+    clearError('contributionDeadline');
   }
 
   function handleRecipientModeChange(mode: RecipientMode) {
@@ -171,6 +198,10 @@ export default function NovaCapsulaScreen() {
         text: values.text.trim(),
         recipientEmail,
         scheduleDate: values.scheduleDate.toISOString(),
+        type: values.capsuleType,
+        ...(values.capsuleType === 'GROUP' && values.contributionDeadline
+          ? { contributionDeadline: values.contributionDeadline.toISOString() }
+          : {}),
       });
 
       if (images.items.length > 0) {
@@ -240,6 +271,18 @@ export default function NovaCapsulaScreen() {
           {formError && <Alert tone="error">{formError}</Alert>}
 
           <StepCard number={1} title="Escreva a mensagem" delay={0} onLayout={trackStep(1)}>
+            <SegmentedControl
+              label="Tipo de cápsula"
+              options={CAPSULE_TYPE_OPTIONS}
+              value={values.capsuleType}
+              onChange={handleCapsuleTypeChange}
+              disabled={submitting}
+            />
+            {values.capsuleType === 'GROUP' && (
+              <Text style={styles.typeHint}>
+                Outras pessoas entram com um código de convite e contribuem até o prazo que você escolher.
+              </Text>
+            )}
             <FormField
               label="Título"
               counter={`${values.title.length}/${TITLE_MAX_LENGTH}`}
@@ -307,6 +350,16 @@ export default function NovaCapsulaScreen() {
                   </Text>
                 </View>
               </PopIn>
+            )}
+            {values.capsuleType === 'GROUP' && (
+              <DateTimeField
+                label="Prazo para contribuições"
+                value={values.contributionDeadline}
+                onChange={setContributionDeadline}
+                minimumDate={minScheduleDate}
+                error={errors.contributionDeadline}
+                hint="Depois dele ninguém mais contribui. Precisa ser antes da entrega."
+              />
             )}
           </StepCard>
 
@@ -421,6 +474,7 @@ const styles = StyleSheet.create({
   },
   stepNumberText: { color: colors.ink, fontFamily: fonts.display, fontSize: 14 },
   stepTitleText: { color: colors.ink, fontFamily: fonts.display, fontSize: 18.4, textTransform: 'uppercase' },
+  typeHint: { color: colors.ink, fontFamily: fonts.bodyMedium, fontSize: 13.6, lineHeight: 20, marginTop: -8 },
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   preset: { paddingVertical: 6, paddingHorizontal: 13, minHeight: 38, justifyContent: 'center' },
   presetPressed: { transform: [{ translateX: 3 }, { translateY: 3 }] },
