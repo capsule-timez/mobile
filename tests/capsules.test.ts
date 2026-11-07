@@ -70,6 +70,40 @@ test('createCapsule posts the contract body and returns the created capsule', as
   configureHttpAuth(() => null, async () => {});
 });
 
+test('createCapsule sends type and contributionDeadline for group capsules and returns the invite code', async (t) => {
+  const { createCapsule } = await import('../src/services/capsules');
+  const requests: Array<{ url: string; options: RequestInit }> = [];
+  t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
+    requests.push({ url, options });
+    return new Response(JSON.stringify({
+      ...summary(), fileCount: undefined, text: 'Olá, turma', files: [],
+      type: 'GROUP', inviteCode: 'K7Q2ZX', contributionDeadline: '2026-12-20T12:00:00.000Z',
+    }), { status: 201 });
+  });
+
+  const input = {
+    title: 'Turma 2026', text: 'Olá, turma', recipientEmail: 'user@example.com', scheduleDate: '2027-01-01T12:00:00.000Z',
+    type: 'GROUP' as const, contributionDeadline: '2026-12-20T12:00:00.000Z',
+  };
+  const capsule = await createCapsule(input);
+
+  assert.deepEqual(JSON.parse(requests[0].options.body as string), input);
+  assert.equal(capsule.type, 'GROUP');
+  assert.equal(capsule.inviteCode, 'K7Q2ZX');
+  assert.equal(capsule.contributionDeadline, '2026-12-20T12:00:00.000Z');
+});
+
+test('createCapsule rejects a group capsule response without an invite code', async (t) => {
+  const { createCapsule } = await import('../src/services/capsules');
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
+    ...summary(), fileCount: undefined, text: 'x', files: [], type: 'GROUP', contributionDeadline: '2026-12-20T12:00:00.000Z',
+  }), { status: 201 }));
+  await assert.rejects(createCapsule({
+    title: 'a', text: 'x', recipientEmail: 'a@b.co', scheduleDate: '2027-01-01T12:00:00.000Z',
+    type: 'GROUP', contributionDeadline: '2026-12-20T12:00:00.000Z',
+  }), /inválidos/);
+});
+
 test('getApiErrorDetails exposes the API code and field errors', async (t) => {
   const { createCapsule, getApiErrorDetails } = await import('../src/services/capsules');
   t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({
