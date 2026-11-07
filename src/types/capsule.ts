@@ -4,6 +4,15 @@ export const CAPSULE_STATUSES: readonly CapsuleStatus[] = ['SCHEDULED', 'SENT', 
 
 export type CapsuleType = 'INDIVIDUAL' | 'GROUP';
 
+export const CAPSULE_TYPES: readonly CapsuleType[] = ['INDIVIDUAL', 'GROUP'];
+
+export type CapsuleMemberRole = 'OWNER' | 'MEMBER';
+
+export interface CapsuleMember {
+  name: string;
+  role: CapsuleMemberRole;
+}
+
 export interface CapsuleSummary {
   id: string;
   title: string;
@@ -13,6 +22,8 @@ export interface CapsuleSummary {
   sentAt: string | null;
   createdAt: string;
   fileCount: number;
+  /** Ausente em respostas anteriores à cápsula em grupo: trate como INDIVIDUAL. */
+  type?: CapsuleType;
 }
 
 export interface CapsuleFile {
@@ -28,11 +39,11 @@ export interface CapsuleFile {
 export interface Capsule extends Omit<CapsuleSummary, 'fileCount'> {
   text: string;
   files: CapsuleFile[];
-  /** Ausente em respostas anteriores à cápsula em grupo: trate como INDIVIDUAL. */
-  type?: CapsuleType;
-  /** Só em cápsulas GROUP. */
+  /** Só em cápsulas GROUP, e no detalhe só para o criador (OWNER). */
   inviteCode?: string;
   contributionDeadline?: string;
+  /** Participantes da cápsula em grupo (só no detalhe). */
+  members?: CapsuleMember[];
 }
 
 export interface CreateCapsuleInput {

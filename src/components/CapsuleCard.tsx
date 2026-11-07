@@ -26,6 +26,10 @@ export function CapsuleStatusBadge({ status }: { status: CapsuleStatus }) {
   return <Badge tone={tone} icon={icon}>{label}</Badge>;
 }
 
+export function GroupBadge() {
+  return <Badge tone="info" icon="users">Grupo</Badge>;
+}
+
 function getHighlight(capsule: CapsuleSummary): string {
   switch (capsule.status) {
     case 'SENT':
@@ -114,6 +118,7 @@ export function CapsuleCard({ capsule, index = 0, onPress }: CapsuleCardProps) {
                 <Icon name={STATUS_ICONS[capsule.status]} size={20} />
               </ShadowBox>
               <CapsuleStatusBadge status={capsule.status} />
+              {capsule.type === 'GROUP' && <GroupBadge />}
               {capsule.fileCount > 0 && (
                 <View style={styles.files} accessible accessibilityLabel={attachments}>
                   <Icon name="paperclip" />
@@ -165,7 +170,7 @@ const styles = StyleSheet.create({
   card: { gap: 12 },
   cardPressed: { transform: [{ translateX: -3 }, { translateY: -3 }] },
   iconPressed: { transform: [{ rotate: '-8deg' }] },
-  top: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  top: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   iconBox: { padding: 7 },
   files: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
   filesText: { color: colors.ink, fontFamily: fonts.bodyBold, fontSize: 13.6 },

@@ -2,11 +2,13 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppShell } from '../../../src/components/AppShell';
+import { Badge } from '../../../src/components/Badge';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
-import { CapsuleStatusBadge } from '../../../src/components/CapsuleCard';
+import { CapsuleStatusBadge, GroupBadge } from '../../../src/components/CapsuleCard';
 import { EmptyState } from '../../../src/components/EmptyState';
 import { Icon } from '../../../src/components/Icon';
+import { InviteCodeCard } from '../../../src/components/InviteCodeCard';
 import { PageHeader } from '../../../src/components/PageHeader';
 import { PopIn } from '../../../src/components/PopIn';
 import { Skeleton } from '../../../src/components/Skeleton';
@@ -14,7 +16,7 @@ import { useToast } from '../../../src/components/Toast';
 import { getApiErrorDetails, getCapsule } from '../../../src/services/capsules';
 import { HttpError } from '../../../src/services/http';
 import { colors, contentMaxWidth, fonts, stroke, strokeThin } from '../../../src/theme/tokens';
-import type { Capsule, CapsuleFile } from '../../../src/types/capsule';
+import type { Capsule, CapsuleFile, CapsuleMember } from '../../../src/types/capsule';
 import { formatDateTime } from '../../../src/utils/formatDate';
 
 type LoadState =
@@ -90,6 +92,7 @@ function CapsulaDetalhe({ id }: { id: string }) {
 }
 
 function CapsuleDetail({ capsule }: { capsule: Capsule }) {
+  const isGroup = capsule.type === 'GROUP';
   return (
     <PopIn style={styles.sections}>
       <PageHeader title={capsule.title} />
@@ -102,13 +105,33 @@ function CapsuleDetail({ capsule }: { capsule: Capsule }) {
           <MetaItem label="Data de entrega">
             <Text style={styles.metaValue}>{formatDateTime(capsule.scheduleDate)}</Text>
           </MetaItem>
+          {isGroup && capsule.contributionDeadline && (
+            <MetaItem label="Prazo para contribuições">
+              <Text style={styles.metaValue}>{formatDateTime(capsule.contributionDeadline)}</Text>
+            </MetaItem>
+          )}
           <MetaItem label="Status">
-            <CapsuleStatusBadge status={capsule.status} />
+            <View style={styles.badges}>
+              <CapsuleStatusBadge status={capsule.status} />
+              {capsule.type === 'GROUP' && <GroupBadge />}
+            </View>
           </MetaItem>
         </View>
         <Text style={styles.heading} accessibilityRole="header">Mensagem</Text>
         <Text style={styles.message} selectable>{capsule.text}</Text>
       </Card>
+
+      {/* A API só envia o código ao criador: participantes nunca o recebem. */}
+      {isGroup && capsule.inviteCode && (
+        <InviteCodeCard
+          heading="Convide mais pessoas"
+          title={capsule.title}
+          inviteCode={capsule.inviteCode}
+          contributionDeadline={capsule.contributionDeadline}
+        />
+      )}
+
+      {isGroup && capsule.members && <MembersCard members={capsule.members} />}
 
       <Card style={styles.card}>
         <Text style={styles.heading} accessibilityRole="header">Anexos</Text>
@@ -117,6 +140,25 @@ function CapsuleDetail({ capsule }: { capsule: Capsule }) {
           : <View style={styles.files}>{capsule.files.map((file) => <FileItem key={file.id} file={file} />)}</View>}
       </Card>
     </PopIn>
+  );
+}
+
+function MembersCard({ members }: { members: CapsuleMember[] }) {
+  // O criador vem primeiro; os demais mantêm a ordem da API (entrada).
+  const ordered = [...members].sort((a, b) => Number(b.role === 'OWNER') - Number(a.role === 'OWNER'));
+  return (
+    <Card style={styles.card}>
+      <Text style={styles.heading} accessibilityRole="header">Participantes ({members.length})</Text>
+      <View style={styles.members}>
+        {ordered.map((member, index) => (
+          <View key={`${member.name}-${index}`} style={styles.member}>
+            <View style={styles.memberIcon}><Icon name="user" size={16} /></View>
+            <Text style={styles.memberName} numberOfLines={1}>{member.name}</Text>
+            {member.role === 'OWNER' && <Badge tone="warning">Criador</Badge>}
+          </View>
+        ))}
+      </View>
+    </Card>
   );
 }
 
@@ -214,6 +256,7 @@ const styles = StyleSheet.create({
   card: { gap: 12 },
   meta: { gap: 16, marginBottom: 8, paddingBottom: 20, borderBottomWidth: strokeThin, borderBottomColor: colors.ink },
   metaItem: { gap: 6, alignItems: 'flex-start' },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   metaLabel: { color: colors.ink, fontFamily: fonts.bodyBold, fontSize: 15 },
   metaValue: { color: colors.ink, fontFamily: fonts.bodyMedium, fontSize: 16, lineHeight: 24 },
   heading: {
@@ -225,6 +268,10 @@ const styles = StyleSheet.create({
   },
   message: { color: colors.ink, fontFamily: fonts.body, fontSize: 16, lineHeight: 25 },
   body: { color: colors.ink, fontFamily: fonts.bodyMedium, fontSize: 16, lineHeight: 24 },
+  members: { gap: 10 },
+  member: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  memberIcon: { padding: 6, borderWidth: strokeThin, borderColor: colors.ink, backgroundColor: colors.paper },
+  memberName: { flex: 1, color: colors.ink, fontFamily: fonts.bodyBold, fontSize: 16 },
   files: { gap: 12 },
   file: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 4 },
   filePressed: { backgroundColor: colors.yellowSoft },

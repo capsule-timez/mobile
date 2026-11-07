@@ -1,5 +1,6 @@
-import { CAPSULE_STATUSES, type Capsule, type CapsuleFile, type CapsuleSummary, type CreateCapsuleInput, type PaginatedResponse } from '../types/capsule';
+import { CAPSULE_STATUSES, CAPSULE_TYPES, type Capsule, type CapsuleMember, type CapsuleType, type CapsuleFile, type CapsuleSummary, type CreateCapsuleInput, type PaginatedResponse } from '../types/capsule';
 import type { PickedImage } from '../utils/imageValidation';
+import { normalizeInviteCode } from '../utils/inviteCode';
 import { HttpError, http } from './http';
 
 const PAGE_SIZE = 100; 
@@ -22,7 +23,8 @@ function isSummary(value: unknown): value is CapsuleSummary {
     typeof value.createdAt === 'string' &&
     (value.sentAt === null || typeof value.sentAt === 'string') &&
     typeof value.fileCount === 'number' &&
-    CAPSULE_STATUSES.includes(value.status as CapsuleSummary['status'])
+    CAPSULE_STATUSES.includes(value.status as CapsuleSummary['status']) &&
+    (value.type === undefined || CAPSULE_TYPES.includes(value.type as CapsuleType))
   );
 }
 
@@ -42,10 +44,6 @@ function parseCapsule(value: unknown): Capsule {
     typeof value.text !== 'string' ||
     typeof value.scheduleDate !== 'string' || Number.isNaN(Date.parse(value.scheduleDate))
   ) throw new Error(INVALID_RESPONSE);
-  // Sem o código de convite a cápsula em grupo não tem como receber participantes.
-  if (value.type === 'GROUP' && (typeof value.inviteCode !== 'string' || !value.inviteCode)) {
-    throw new Error(INVALID_RESPONSE);
-  }
   return value as unknown as Capsule;
 }
 
@@ -60,12 +58,17 @@ function isFile(value: unknown): value is CapsuleFile {
   );
 }
 
+function isMember(value: unknown): value is CapsuleMember {
+  return isRecord(value) && typeof value.name === 'string' && (value.role === 'OWNER' || value.role === 'MEMBER');
+}
+
 function parseCapsuleDetail(value: unknown): Capsule {
   const capsule = parseCapsule(value);
   if (
     typeof capsule.recipientEmail !== 'string' ||
     !CAPSULE_STATUSES.includes(capsule.status) ||
-    !Array.isArray(capsule.files) || !capsule.files.every(isFile)
+    !Array.isArray(capsule.files) || !capsule.files.every(isFile) ||
+    (capsule.members !== undefined && (!Array.isArray(capsule.members) || !capsule.members.every(isMember)))
   ) throw new Error(INVALID_RESPONSE);
   return capsule;
 }
@@ -85,7 +88,18 @@ export async function getCapsule(id: string, signal?: AbortSignal): Promise<Caps
 }
 
 export async function createCapsule(input: CreateCapsuleInput): Promise<Capsule> {
-  return parseCapsule(await http.post<unknown>('/api/capsules', input));
+  const capsule = parseCapsule(await http.post<unknown>('/api/capsules', input));
+  // Quem cria é o OWNER: sem o código de convite a cápsula em grupo não tem como receber participantes.
+  // (No detalhe e no join o código pode faltar, porque a API só o envia ao criador.)
+  if (capsule.type === 'GROUP' && (typeof capsule.inviteCode !== 'string' || !capsule.inviteCode)) {
+    throw new Error(INVALID_RESPONSE);
+  }
+  return capsule;
+}
+
+/** Entra como participante na cápsula em grupo do código informado e devolve o detalhe dela. */
+export async function joinCapsule(inviteCode: string): Promise<Capsule> {
+  return parseCapsuleDetail(await http.post<unknown>('/api/capsules/join', { inviteCode: normalizeInviteCode(inviteCode) }));
 }
 
 /** Envia uma imagem para a cápsula (a API aceita um arquivo por requisição, no campo `file`). */

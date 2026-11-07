@@ -112,7 +112,12 @@ export default function ListaCapsulasScreen() {
 
       {hasCapsules && (
         <View style={styles.toolbar}>
-          <Text style={styles.heading} accessibilityRole="header">Suas cápsulas</Text>
+          <View style={styles.headingRow}>
+            <Text style={styles.heading} accessibilityRole="header">Suas cápsulas</Text>
+            <Button variant="secondary" size="sm" icon="users" onPress={() => router.push('/entrar')}>
+              Entrar com código
+            </Button>
+          </View>
           <SegmentedControl<StatusFilter>
             label="Filtrar por status"
             value={filter}
@@ -153,7 +158,12 @@ export default function ListaCapsulasScreen() {
           icon="hourglass"
           title="Nenhuma cápsula por aqui ainda"
           description="Escreva uma mensagem hoje e deixe que ela chegue no futuro."
-          action={<Button icon="plus" onPress={() => router.push('/nova')}>Criar primeira cápsula</Button>}
+          action={
+            <View style={styles.emptyActions}>
+              <Button icon="plus" onPress={() => router.push('/nova')}>Criar primeira cápsula</Button>
+              <Button variant="secondary" icon="users" onPress={() => router.push('/entrar')}>Entrar com código</Button>
+            </View>
+          }
         />
       );
     }
@@ -207,6 +217,8 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 24 },
   header: { gap: 28, marginBottom: 28 },
   toolbar: { gap: 12, paddingBottom: 16, borderBottomWidth: stroke, borderBottomColor: colors.ink },
+  headingRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  emptyActions: { alignItems: 'center', gap: 12 },
   heading: {
     color: colors.ink,
     fontFamily: fonts.display,
