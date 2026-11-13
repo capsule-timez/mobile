@@ -55,6 +55,8 @@ function Navigation() {
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(app)" />
       </Stack.Protected>
+      <Stack.Screen name="convite/index" />
+      <Stack.Screen name="convite/[token]" />
     </Stack>
   );
 }

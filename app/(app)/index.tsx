@@ -110,6 +110,8 @@ export default function ListaCapsulasScreen() {
         }
       />
 
+      <Button variant="secondary" onPress={() => router.push('/convite')}>Aceitar convite</Button>
+
       {hasCapsules && (
         <View style={styles.toolbar}>
           <View style={styles.headingRow}>
