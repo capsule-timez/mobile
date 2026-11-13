@@ -1,6 +1,8 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useUser } from '../../../src/auth/AuthProvider';
+import { CapsuleInvites } from '../../../src/components/CapsuleInvites';
 import { AppShell } from '../../../src/components/AppShell';
 import { Badge } from '../../../src/components/Badge';
 import { Button } from '../../../src/components/Button';
@@ -66,7 +68,7 @@ function CapsulaDetalhe({ id }: { id: string }) {
 
   return (
     <AppShell>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Button variant="ghost" size="sm" onPress={() => router.navigate('/')}>Voltar para cápsulas</Button>
 
         {state.status === 'loading' && <DetailSkeleton />}
@@ -93,6 +95,7 @@ function CapsulaDetalhe({ id }: { id: string }) {
 
 function CapsuleDetail({ capsule }: { capsule: Capsule }) {
   const isGroup = capsule.type === 'GROUP';
+  const user = useUser();
   return (
     <PopIn style={styles.sections}>
       <PageHeader title={capsule.title} />
@@ -139,6 +142,9 @@ function CapsuleDetail({ capsule }: { capsule: Capsule }) {
           ? <Text style={styles.body}>Nenhum anexo nesta cápsula.</Text>
           : <View style={styles.files}>{capsule.files.map((file) => <FileItem key={file.id} file={file} />)}</View>}
       </Card>
+      {isGroup && user && (capsule.creatorId ? capsule.creatorId === user.id : Boolean(capsule.inviteCode)) && (
+        <CapsuleInvites capsuleId={capsule.id} />
+      )}
     </PopIn>
   );
 }

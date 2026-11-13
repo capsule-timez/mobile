@@ -37,6 +37,7 @@ export interface CapsuleFile {
 }
 
 export interface Capsule extends Omit<CapsuleSummary, 'fileCount'> {
+  creatorId?: string;
   text: string;
   files: CapsuleFile[];
   /** Só em cápsulas GROUP, e no detalhe só para o criador (OWNER). */
