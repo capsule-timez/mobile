@@ -174,7 +174,7 @@ export default function NovaCapsulaScreen() {
 
   function leave() {
     resetForm();
-    router.navigate('/(app)/index');
+    router.navigate('/');
   }
 
   async function handleSubmit() {

@@ -1,4 +1,16 @@
-import { CAPSULE_STATUSES, CAPSULE_TYPES, type Capsule, type CapsuleMember, type CapsuleType, type CapsuleFile, type CapsuleSummary, type CreateCapsuleInput, type PaginatedResponse } from '../types/capsule';
+import {
+  CAPSULE_STATUSES,
+  CAPSULE_TYPES,
+  type Capsule,
+  type CapsuleContribution,
+  type CapsuleFile,
+  type CapsuleParticipant,
+  type CapsuleSummary,
+  type CapsuleType,
+  type CreateCapsuleInput,
+  type PaginatedResponse,
+  type UpdateCapsuleInput,
+} from '../types/capsule';
 import type { PickedImage } from '../utils/imageValidation';
 import { normalizeInviteCode } from '../utils/inviteCode';
 import { HttpError, http } from './http';
@@ -24,7 +36,8 @@ function isSummary(value: unknown): value is CapsuleSummary {
     (value.sentAt === null || typeof value.sentAt === 'string') &&
     typeof value.fileCount === 'number' &&
     CAPSULE_STATUSES.includes(value.status as CapsuleSummary['status']) &&
-    (value.type === undefined || CAPSULE_TYPES.includes(value.type as CapsuleType))
+    (value.type === undefined || CAPSULE_TYPES.includes(value.type as CapsuleType)) &&
+    (value.participants === undefined || (Array.isArray(value.participants) && value.participants.every(isParticipant)))
   );
 }
 
@@ -58,8 +71,22 @@ function isFile(value: unknown): value is CapsuleFile {
   );
 }
 
-function isMember(value: unknown): value is CapsuleMember {
-  return isRecord(value) && typeof value.name === 'string' && (value.role === 'OWNER' || value.role === 'MEMBER');
+function isParticipant(value: unknown): value is CapsuleParticipant {
+  return (
+    isRecord(value) && typeof value.name === 'string' && (value.role === 'OWNER' || value.role === 'MEMBER') &&
+    (value.hasContributed === undefined || typeof value.hasContributed === 'boolean')
+  );
+}
+
+function isContribution(value: unknown): value is CapsuleContribution {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    isRecord(value.author) && typeof value.author.name === 'string' &&
+    (value.text === null || typeof value.text === 'string') &&
+    typeof value.createdAt === 'string' &&
+    Array.isArray(value.files) && value.files.every(isFile)
+  );
 }
 
 function parseCapsuleDetail(value: unknown): Capsule {
@@ -68,7 +95,8 @@ function parseCapsuleDetail(value: unknown): Capsule {
     typeof capsule.recipientEmail !== 'string' ||
     !CAPSULE_STATUSES.includes(capsule.status) ||
     !Array.isArray(capsule.files) || !capsule.files.every(isFile) ||
-    (capsule.members !== undefined && (!Array.isArray(capsule.members) || !capsule.members.every(isMember)))
+    (capsule.participants !== undefined && (!Array.isArray(capsule.participants) || !capsule.participants.every(isParticipant))) ||
+    (capsule.contributions !== undefined && (!Array.isArray(capsule.contributions) || !capsule.contributions.every(isContribution)))
   ) throw new Error(INVALID_RESPONSE);
   return capsule;
 }
@@ -100,6 +128,39 @@ export async function createCapsule(input: CreateCapsuleInput): Promise<Capsule>
 /** Entra como participante na cápsula em grupo do código informado e devolve o detalhe dela. */
 export async function joinCapsule(inviteCode: string): Promise<Capsule> {
   return parseCapsuleDetail(await http.post<unknown>('/api/capsules/join', { inviteCode: normalizeInviteCode(inviteCode) }));
+}
+
+/** A resposta traz só os campos de conteúdo; recarregue o detalhe para ver o restante. */
+export async function updateCapsule(id: string, input: UpdateCapsuleInput): Promise<Capsule> {
+  return parseCapsule(await http.patch<unknown>(`/api/capsules/${encodeURIComponent(id)}`, input));
+}
+
+/** Só quem criou exclui, e só enquanto a cápsula está agendada (senão 404 ou 409). */
+export async function deleteCapsule(id: string): Promise<void> {
+  await http.delete(`/api/capsules/${encodeURIComponent(id)}`);
+}
+
+export interface ContributionInput {
+  text?: string;
+  images?: PickedImage[];
+}
+
+/** Só texto vai em JSON; com imagens, texto e arquivos vão juntos em multipart no campo `files`. */
+export async function contributeToCapsule(capsuleId: string, { text, images = [] }: ContributionInput): Promise<CapsuleContribution> {
+  const path = `/api/capsules/${encodeURIComponent(capsuleId)}/contributions`;
+  let response: unknown;
+  if (images.length === 0) {
+    response = await http.post<unknown>(path, { text });
+  } else {
+    const form = new FormData();
+    if (text) form.append('text', text);
+    for (const image of images) {
+      form.append('files', { uri: image.uri, name: image.name, type: image.type } as unknown as Blob);
+    }
+    response = await http.post<unknown>(path, form, { timeoutMs: UPLOAD_TIMEOUT_MS });
+  }
+  if (!isContribution(response)) throw new Error(INVALID_RESPONSE);
+  return response;
 }
 
 /** Envia uma imagem para a cápsula (a API aceita um arquivo por requisição, no campo `file`). */

@@ -1,5 +1,6 @@
 // Limites espelhados do contrato da API (backend src/lib/upload.ts e capsule.service.ts).
 export const MAX_IMAGES_PER_CAPSULE = 5;
+export const MAX_IMAGES_PER_CONTRIBUTION = 3;
 export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
