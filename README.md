@@ -10,13 +10,18 @@ envia o conteúdo por e-mail quando o momento chega.
 - **Minhas cápsulas:** listagem paginada da API, contadores por status
   (agendadas, enviadas, com falha), filtro por status, puxar para atualizar,
   estados de carregamento, vazio e erro.
-- **Nova cápsula:** formulário em três passos (mensagem, data de entrega com
-  atalhos, destinatário — o próprio usuário ou outra pessoa), com validação
-  local e exibição dos erros devolvidos pela API.
+- **Nova cápsula:** individual ou em grupo, em passos (mensagem, data de
+  entrega com atalhos e prazo para contribuições, destinatário e até 5 imagens),
+  com validação local e exibição dos erros devolvidos pela API.
+- **Detalhe:** dados, mensagem e anexos. Enquanto a cápsula está agendada, quem
+  a criou pode editá-la, anexar imagens e excluí-la.
+- **Cápsula em grupo:** selo e participantes na lista e no detalhe (com quem já
+  contribuiu), entrada por código, contribuições com texto e até 3 imagens,
+  convites por e-mail com o status de cada um e aceite pelo token do convite.
 - Navegação por duas abas (listar / criar) e rotas protegidas pela sessão.
 
-Fora do escopo por enquanto: detalhe, edição e exclusão de cápsulas, anexos
-(a API já tem endpoints de arquivos) e refresh de token.
+Fora do escopo por enquanto: refresh de token e a página pública da cápsula
+entregue, que o e-mail abre na Web (`/c/:token`).
 
 ## Pré-requisitos
 
@@ -120,12 +125,27 @@ Atalhos equivalentes: `npm run android`, `npm run ios`, `npm run web`.
 - Listagem: `GET /api/capsules?page=&pageSize=`. O app percorre as páginas
   (100 por página, até 20) e filtra/ordena localmente.
 - Criação: `POST /api/capsules` com `title`, `text`, `recipientEmail` e
-  `scheduleDate` (ISO 8601 em UTC). A data deve estar no futuro.
+  `scheduleDate` (ISO 8601 em UTC). A data deve estar no futuro. Em grupo,
+  também `type: "GROUP"` e `contributionDeadline`; a resposta traz o `inviteCode`.
+  As imagens vão depois, uma por requisição, em `POST /api/capsules/:id/files`.
 - Detalhe: tocar em um card da lista abre `app/(app)/capsula/[id].tsx`, que
   consulta `GET /api/capsules/:id` e mostra título, status, data de entrega,
   destinatário, mensagem e anexos (imagens pela `downloadUrl` temporária; tocar
   abre o arquivo). Há skeleton no carregamento, "Cápsula não encontrada" para 404
   (id inexistente ou de outra conta) e "Tentar novamente" quando a API falha.
+- Edição: `PATCH /api/capsules/:id` só com os campos alterados. Exclusão:
+  `DELETE /api/capsules/:id`, com confirmação. As duas valem só para quem criou
+  e só com a cápsula agendada (senão a API responde 404 ou 409).
+- Grupo: a cápsula em grupo é a que traz `participants` (`{ name, role,
+  hasContributed }`); quem criou é quem recebe o `inviteCode`.
+  - Entrar por código: `POST /api/capsules/join`. O código é hexadecimal
+    minúsculo, e o app normaliza o que é digitado.
+  - Contribuir: `POST /api/capsules/:id/contributions`, em JSON só com texto ou
+    em multipart com `text` e as imagens no campo `files`.
+  - Convites: `POST` e `GET /api/capsules/:id/invites` (o envio devolve o
+    resultado de cada e-mail) e `POST /api/invites/:token/accept`, que devolve
+    o detalhe da cápsula. Sem sessão, o app guarda o convite e volta para ele
+    depois do login.
 - O contrato completo está em `backend/docs/api/openapi.yaml`.
 
 ## Estrutura
