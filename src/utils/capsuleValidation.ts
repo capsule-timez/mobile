@@ -125,3 +125,36 @@ export function parseDateTimeInput(text: string): Date | null {
     date.getHours() === hour && date.getMinutes() === minute;
   return valid ? date : null;
 }
+
+export const CONTRIBUTION_TEXT_MAX_LENGTH = 2_000;
+
+/** Texto e imagens são opcionais, mas a contribuição precisa de ao menos um dos dois. */
+export function validateContributionText(value: string, imageCount: number): string | undefined {
+  const text = value.trim();
+  if (!text && imageCount === 0) return 'Escreva uma mensagem ou escolha ao menos uma imagem.';
+  if (text.length > CONTRIBUTION_TEXT_MAX_LENGTH) {
+    return `A mensagem deve ter no máximo ${CONTRIBUTION_TEXT_MAX_LENGTH.toLocaleString('pt-BR')} caracteres.`;
+  }
+  return undefined;
+}
+
+export interface CapsuleEditValues {
+  title: string;
+  text: string;
+  recipientEmail: string;
+  scheduleDate: Date | null;
+}
+
+/** Regras do PATCH /api/capsules/:id, que aceita os mesmos campos de conteúdo da criação. */
+export function validateCapsuleEdit(values: CapsuleEditValues, now = new Date()): CapsuleFormErrors {
+  const errors = validateCapsuleForm({
+    capsuleType: 'INDIVIDUAL',
+    title: values.title,
+    text: values.text,
+    scheduleDate: values.scheduleDate,
+    contributionDeadline: null,
+    recipientMode: 'other',
+    recipientEmail: values.recipientEmail,
+  }, now);
+  return errors;
+}
