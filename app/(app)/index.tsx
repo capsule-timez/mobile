@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useUser } from '../../src/auth/AuthProvider';
+import { takePendingInvite } from '../../src/auth/pendingInvite';
 import { AppShell } from '../../src/components/AppShell';
 import { Button } from '../../src/components/Button';
 import { CapsuleCard, CapsuleCardSkeleton } from '../../src/components/CapsuleCard';
@@ -52,6 +53,9 @@ export default function ListaCapsulasScreen() {
   // Carrega ao abrir a tela e recarrega (sem piscar) ao voltar da criação.
   useFocusEffect(
     useCallback(() => {
+      // Convite aberto antes do login: volta para ele assim que a sessão existe.
+      const pendingInvite = takePendingInvite();
+      if (pendingInvite) router.push({ pathname: '/convite/[token]', params: { token: pendingInvite } });
       mounted.current = true;
       const controller = new AbortController();
       setState((current) => (current.status === 'error' ? { status: 'loading' } : current));
@@ -60,7 +64,7 @@ export default function ListaCapsulasScreen() {
         mounted.current = false;
         controller.abort();
       };
-    }, [load]),
+    }, [load, router]),
   );
 
   function retry() {
