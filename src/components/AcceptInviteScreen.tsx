@@ -3,15 +3,18 @@ import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '../auth/AuthProvider';
+import { setPendingInvite } from '../auth/pendingInvite';
+import { Alert } from '../components/Alert';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { FormField } from '../components/FormField';
 import { PageHeader } from '../components/PageHeader';
 import { PaperBackground } from '../components/PaperBackground';
 import { useToast } from '../components/Toast';
-import { getApiErrorDetails } from '../services/capsules';
-import { acceptInvite } from '../services/invites';
+import { acceptInvite, describeAcceptError } from '../services/invites';
 import { colors, contentMaxWidth, fonts } from '../theme/tokens';
+
+type Failure = { message: string; retryable: boolean };
 
 export function AcceptInviteScreen({ linkToken }: { linkToken?: string }) {
   const router = useRouter();
@@ -19,6 +22,7 @@ export function AcceptInviteScreen({ linkToken }: { linkToken?: string }) {
   const toast = useToast();
   const [input, setInput] = useState(linkToken ?? '');
   const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<Failure | null>(null);
   const submitting = useRef(false);
   const autoAttempted = useRef(false);
   const active = useRef(false);
@@ -39,20 +43,25 @@ export function AcceptInviteScreen({ linkToken }: { linkToken?: string }) {
     if (!user || !token || submitting.current) return;
     submitting.current = true;
     setBusy(true);
+    setFailure(null);
     try {
       const id = await acceptInvite(token);
       if (active.current) {
-        toast.success('Convite aceito!');
+        toast.success('Você entrou na cápsula!', { description: 'Deixe sua contribuição antes do prazo.' });
         router.replace({ pathname: '/capsula/[id]', params: { id } });
       }
     } catch (error) {
-      if (active.current) {
-        toast.error('Não foi possível aceitar o convite', { description: getApiErrorDetails(error).message });
-      }
+      if (active.current) setFailure(describeAcceptError(error));
     } finally {
       submitting.current = false;
       if (active.current) setBusy(false);
     }
+  }
+
+  function signIn() {
+    // Ao entrar, a lista de cápsulas consome o token e volta para este convite.
+    if (input.trim()) setPendingInvite(input);
+    router.push('/login');
   }
 
   return (
@@ -63,14 +72,23 @@ export function AcceptInviteScreen({ linkToken }: { linkToken?: string }) {
             if (router.canGoBack()) router.back();
             else router.replace(user ? '/' : '/login');
           }}>Voltar</Button>
-          <PageHeader title="Aceitar convite" />
+          <PageHeader title={failure && !failure.retryable ? 'Convite indisponível' : 'Aceitar convite'} />
           <Card style={styles.card}>
+            {failure && (
+              <>
+                <Alert tone="error">{failure.message}</Alert>
+                {!failure.retryable && (
+                  <Text style={styles.text}>Se ainda quiser participar, peça um novo convite a quem criou a cápsula.</Text>
+                )}
+              </>
+            )}
             {user ? (
               <>
                 <FormField
                   label="Token do convite"
+                  hint="É o final do link recebido por e-mail, depois de /convite/."
                   value={input}
-                  onChangeText={setInput}
+                  onChangeText={(value) => { setInput(value); setFailure(null); }}
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!busy}
@@ -78,13 +96,13 @@ export function AcceptInviteScreen({ linkToken }: { linkToken?: string }) {
                   onSubmitEditing={() => void submit(input)}
                 />
                 <Button loading={busy} disabled={!input.trim()} onPress={() => void submit(input)}>
-                  Aceitar convite
+                  {failure?.retryable ? 'Tentar novamente' : 'Aceitar convite'}
                 </Button>
               </>
             ) : (
               <>
-                <Text style={styles.text}>Entre na sua conta para aceitar o convite.</Text>
-                <Button onPress={() => router.push('/login')}>Entrar</Button>
+                <Text style={styles.text}>Entre na sua conta para aceitar o convite. Depois do login, voltamos para ele.</Text>
+                <Button onPress={signIn}>Entrar</Button>
               </>
             )}
           </Card>
