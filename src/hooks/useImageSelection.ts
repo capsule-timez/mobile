@@ -44,7 +44,7 @@ export function useImageSelection(maxFiles = MAX_IMAGES_PER_CAPSULE) {
         if (problem) {
           rejections.push(problem);
         } else if (slots <= 0) {
-          rejections.push(`“${image.name}” não foi adicionada: o limite é de ${maxFiles} imagens por cápsula.`);
+          rejections.push(`“${image.name}” não foi adicionada: o limite é de ${maxFiles} ${maxFiles === 1 ? 'imagem' : 'imagens'}.`);
         } else {
           slots -= 1;
           accepted.push({ key: String(nextKey.current++), image, status: 'pending' });
