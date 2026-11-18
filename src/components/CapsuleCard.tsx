@@ -3,6 +3,7 @@ import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-nativ
 import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 import type { CapsuleStatus, CapsuleSummary } from '../types/capsule';
 import { colors, fonts, stroke, strokeThin } from '../theme/tokens';
+import { formatParticipantNames, isGroupCapsule } from '../utils/capsuleGroup';
 import { getDeliveryProgress } from '../utils/capsuleList';
 import { formatDateTime, formatRelativeTime, isInFuture } from '../utils/formatDate';
 import { Badge, type BadgeTone } from './Badge';
@@ -101,6 +102,8 @@ export function CapsuleCard({ capsule, index = 0, onPress }: CapsuleCardProps) {
   const statusColor = STATUS_COLORS[capsule.status];
   const progress = capsule.status === 'SCHEDULED' ? getDeliveryProgress(capsule) : null;
   const attachments = `${capsule.fileCount} ${capsule.fileCount === 1 ? 'anexo' : 'anexos'}`;
+  const isGroup = isGroupCapsule(capsule);
+  const participantNames = isGroup && capsule.participants?.length ? formatParticipantNames(capsule.participants) : null;
 
   return (
     <PopIn delay={Math.min(index, 8) * 60}>
@@ -118,7 +121,7 @@ export function CapsuleCard({ capsule, index = 0, onPress }: CapsuleCardProps) {
                 <Icon name={STATUS_ICONS[capsule.status]} size={20} />
               </ShadowBox>
               <CapsuleStatusBadge status={capsule.status} />
-              {capsule.type === 'GROUP' && <GroupBadge />}
+              {isGroup && <GroupBadge />}
               {capsule.fileCount > 0 && (
                 <View style={styles.files} accessible accessibilityLabel={attachments}>
                   <Icon name="paperclip" />
@@ -144,6 +147,12 @@ export function CapsuleCard({ capsule, index = 0, onPress }: CapsuleCardProps) {
                 <View style={styles.metaIcon}><Icon name="mail" /></View>
                 <Text style={styles.metaText}>{capsule.recipientEmail}</Text>
               </View>
+              {participantNames && (
+                <View style={styles.metaRow} accessible accessibilityLabel={`Participantes: ${participantNames}`}>
+                  <View style={styles.metaIcon}><Icon name="users" /></View>
+                  <Text style={styles.metaText}>{participantNames}</Text>
+                </View>
+              )}
             </View>
           </Card>
         )}
